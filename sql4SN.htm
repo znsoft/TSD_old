@@ -1,0 +1,118 @@
+﻿<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>ТСД тест</title>
+<script type="text/javascript">
+
+// функция определяет тип браузера и устанавливает одно из свойств переменной browser в Истина
+function определитьБраузер(){
+	var userAgent = navigator.userAgent.toLowerCase();
+	// Определим используемый браузер
+	browser = {
+		version: (userAgent.match( /.+(?:rv|it|ra|ie)[\/: ]([\d.]+)/ ) || [])[1],
+		safari: /webkit/.test( userAgent ),
+		opera: /opera/.test( userAgent ),
+		msie: /msie/.test( userAgent ) && !/opera/.test( userAgent ),
+		firefox3: /firefox\/3/.test( userAgent ) && !/(compatible|webkit)/.test( userAgent ),
+		firefox2: /firefox\/2/.test( userAgent ) && !/(compatible|webkit)/.test( userAgent ),
+		firefox1: /firefox\/1/.test( userAgent ) && !/(compatible|webkit)/.test( userAgent )
+	}
+}
+
+// Для разных браузеров пользуются разные пути получения таких объектов, поэтому пользуем попытку/исключение.
+// возвращает объект, который может соединяться с сервером.
+function getXmlHttp(){
+	var xmlhttp;
+	try {
+		xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+	} catch (e) {
+		try {
+			xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+		} catch (E) {
+			xmlhttp = false;
+		}
+	}
+	if (!xmlhttp && typeof XMLHttpRequest!='undefined') {
+		xmlhttp = new XMLHttpRequest();
+	}
+  return xmlhttp;
+}
+
+// функция возвращает строку в неизменном виде для всех браузеров, кроме ИЕ. Для ИЕ FF версии 3.0 добавляет "m:".
+function ИЕ(стр){
+	if (browser.msie || browser.firefox3) return  "m:" + стр
+	else return стр
+}
+
+// Функция вызывается по мере готовности ответа от сервера
+function ПриОтветеВебСервиса(xmlhttp){
+	if (xmlhttp.readyState == 4) {// когда ответ готов.
+		if(xmlhttp.status != 200) {// Если всё плохо - скажем об этом
+		   if(xmlhttp.status == 0) alert("походу ваш браузер неподдерживается. запустите в IE " + xmlhttp.responseText); else alert("Error " + xmlhttp.responseText);
+		}
+		else{
+                        //alert(xmlhttp.responseText);
+			/*собственно за следующие три строки мы и боролись. Получили ответ сервера и выводим его, ответ, на страницу.
+			Работа с javaScript описана в соответствующих учебниках. Напрмер в http://javaScript.ru
+			Нам интересно только то что ответ сервера находится в свойстве responseXML объекта xmlhttp
+			responseXML - объект типа DOM*/
+
+			var ДомОтвет = xmlhttp.responseXML.getElementsByTagName("m:Наименование")[0]; // "m:return" - для IE, "return" - для FF
+			var ДанныеОтвета = ДомОтвет.childNodes[0].data
+			document.getElementById("ОтветСервера").appendChild(document.createTextNode(ДанныеОтвета));
+			document.getElementById("ОтветСервера").appendChild(document.createTextNode('\n\r \r\n'));
+//			document.getElementById("ОтветСервера").appendChild(document.createTextNode(xmlhttp.responseText));
+		}
+
+		// Когда сервер ответил можно включить кнопочку.
+		document.getElementById("MyButton").value = "Запрос в 1с";
+		document.getElementById("MyButton").disabled = false;
+	}
+}
+
+function createxml(cmd,code,name,kolvo){
+return '<?xml version="1.0" encoding="UTF-8"?>' +
+'<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'+
+'<soap:Header/><soap:Body><m:ОбменТСД xmlns:m="http://www.dns-shop.tsd.ru">'+
+'<m:ВидОперации xmlns:xs="http://www.w3.org/2001/XMLSchema"  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+cmd+'</m:ВидОперации>'+
+'<m:Список xmlns:xs="http://www.w3.org/2001/XMLSchema"	xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance">'+
+'<m:Номенклатура><m:Код>'+code+'</m:Код><m:Наименование>'+name+'</m:Наименование><m:Количество>'+kolvo+'</m:Количество></m:Номенклатура>'+
+'</m:Список></m:ОбменТСД></soap:Body></soap:Envelope>';
+}
+
+
+
+// функция вызывается по нажатию кнопки на страничке. С неё всё и начинается
+function ПриветствоватьВебСервис(){
+	определитьБраузер()
+	var xmlhttp = getXmlHttp()
+
+	// создаём соединение типа POST, второй параметр - адрес, параметр true значит асинхронное, то есть браузер не бедет ждать ответа сервера, а продолжит работу
+	xmlhttp.open('POST', 'http://adm-prog14/zheludkov_sklad/ws/TSD.1cws', true ,'WebConnection','951')// файл preved.1cws располежен в том же каталоге, что и страница preved.htm. Путь может быть и другим, например, таким: '/./ws/preved.1cws'
+
+	// Скажем что делать когда придёт ответ - вызвать функцию ПриОтветеВебСервиса()
+	xmlhttp.onreadystatechange = function() {ПриОтветеВебСервиса(xmlhttp)}
+
+	// Отправим своё приветствие веб сервису в виде XML.
+	xmlhttp.send(createxml('Информация',document.getElementById("MyEdit").value,'124','500'));
+//	'<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Header/><soap:Body>'+
+//	'<m:updatefirmware xmlns:m="http://www.dns-shop.tsd.ru"><m:version xmlns:xs="http://www.w3.org/2001/XMLSchema"		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">0</m:version>'+
+//	'</m:updatefirmware>	</soap:Body></soap:Envelope>')
+
+	// Напишем на кнопке чего мы ждём, а то пользователи они такие. Понатыкают на кнопку а потом удивляются.
+	document.getElementById("MyButton").value = "Ждём ответа...";
+	document.getElementById("MyButton").disabled = true;
+	document.getElementById("MyEdit").value = "";
+}
+
+
+ </script>
+<body>
+<p>
+  <input id="MyEdit" type="text" value=""/>
+
+  <input id="MyButton" type="button" onclick="ПриветствоватьВебСервис()" value="Получить Ответ"/>
+</p>
+<pre id="ОтветСервера"></pre>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings version="1.0">
+	<category name="main.rc">
+		<category name="Window">
+			<property name="Left" type="integer">75</property>
+			<property name="Top" type="integer">75</property>
+			<property name="Right" type="integer">847</property>
+			<property name="Bottom" type="integer">651</property>
+			<property name="Maximized" type="integer">0</property>
+			<property name="Active" type="integer">0</property>
+		</category>
+	</category>
+	<category name="main.c">
+		<category name="Foldings">
+			<property name="Line1" type="integer">193</property>
+			<property name="Line2" type="integer">201</property>
+			<property name="Line3" type="integer">283</property>
+			<property name="Line4" type="integer">298</property>
+			<property name="Line5" type="integer">328</property>
+			<property name="Line6" type="integer">1046</property>
+			<property name="Line7" type="integer">1060</property>
+			<property name="Line8" type="integer">1099</property>
+			<property name="Line9" type="integer">1137</property>
+			<property name="Line10" type="integer">1155</property>
+			<property name="Line11" type="integer">1184</property>
+			<property name="Line12" type="integer">1266</property>
+			<property name="Line13" type="integer">1285</property>
+			<property name="Line14" type="integer">1324</property>
+			<property name="Line15" type="integer">1332</property>
+			<property name="Line16" type="integer">1374</property>
+			<property name="Line17" type="integer">1381</property>
+			<property name="Line18" type="integer">1434</property>
+			<property name="Line19" type="integer">1649</property>
+			<property name="Line20" type="integer">1970</property>
+			<property name="Line21" type="integer">1988</property>
+			<property name="Line22" type="integer">1997</property>
+			<property name="Line23" type="integer">2004</property>
+			<property name="Line24" type="integer">2015</property>
+			<property name="Line25" type="integer">2023</property>
+			<property name="Line26" type="integer">2041</property>
+			<property name="Line27" type="integer">2055</property>
+			<property name="Line28" type="integer">2070</property>
+			<property name="Line29" type="integer">2076</property>
+			<property name="Line30" type="integer">2083</property>
+			<property name="Line31" type="integer">2690</property>
+			<property name="Line32" type="integer">2698</property>
+			<property name="Line33" type="integer">4382</property>
+			<property name="Line34" type="integer">4500</property>
+			<property name="Line35" type="integer">4563</property>
+			<property name="Line36" type="integer">4569</property>
+			<property name="Line37" type="integer">4578</property>
+			<property name="Line38" type="integer">4593</property>
+			<property name="Line39" type="integer">4610</property>
+			<property name="Line40" type="integer">4631</property>
+			<property name="Line41" type="integer">4647</property>
+			<property name="Line42" type="integer">4652</property>
+			<property name="Line43" type="integer">4710</property>
+			<property name="Line44" type="integer">4747</property>
+			<property name="Line45" type="integer">5159</property>
+			<property name="Line46" type="integer">5178</property>
+			<property name="Line47" type="integer">6174</property>
+		</category>
+		<category name="Window">
+			<property name="Left" type="integer">-8</property>
+			<property name="Top" type="integer">-30</property>
+			<property name="Right" type="integer">1038</property>
+			<property name="Bottom" type="integer">772</property>
+			<property name="Maximized" type="integer">1</property>
+			<property name="Active" type="integer">1</property>
+		</category>
+		<category name="Breakpoints">
+			<category name="Breakpoint1">
+				<property name="Line" type="integer">4187</property>
+				<property name="Enabled" type="integer">1</property>
+				<property name="HitCount" type="integer">0</property>
+				<property name="Expression" type="string"></property>
+			</category>
+		</category>
+	</category>
+	<category
+name="..\..\Program Files\PellesC\Include\WinCE\winsock.h" />
+	<category name="Debugger">
+		<category name="Watches">
+			<property name="Watch1" type="string">wzData</property>
+			<property name="Watch2" type="string">szData</property>
+			<property name="Watch3" type="string">i</property>
+			<property name="Watch4" type="string">kolvo</property>
+		</category>
+	</category>
+	<category name="main.h">
+		<category name="Window">
+			<property name="Left" type="integer">125</property>
+			<property name="Top" type="integer">125</property>
+			<property name="Right" type="integer">897</property>
+			<property name="Bottom" type="integer">701</property>
+			<property name="Maximized" type="integer">0</property>
+			<property name="Active" type="integer">0</property>
+		</category>
+	</category>
+</settings>
