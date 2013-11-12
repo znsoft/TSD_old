@@ -51,7 +51,7 @@ function ПриОтветеВебСервиса(xmlhttp){
 		   if(xmlhttp.status == 0) alert("походу ваш браузер неподдерживается. запустите в IE " + xmlhttp.responseText); else alert("Error " + xmlhttp.responseText);
 		}
 		else{
-                        //alert(xmlhttp.responseText);
+                        alert(xmlhttp.responseText);
 			/*собственно за следующие три строки мы и боролись. Получили ответ сервера и выводим его, ответ, на страницу.
 			Работа с javaScript описана в соответствующих учебниках. Напрмер в http://javaScript.ru
 			Нам интересно только то что ответ сервера находится в свойстве responseXML объекта xmlhttp
