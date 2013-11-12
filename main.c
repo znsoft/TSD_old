@@ -22,15 +22,20 @@
 #define  ScanBuf    10	//буфер сканирования кэш
 #define  GUIDSIZE   2000	//размер временной таблицы гуидов (строк)
 #define  BUFSIZE    200000	// размер выделяемой памяти для буфера приема отсылки
+#define  true    TRUE
+#define  boolean _Bool
+#define  false   FALSE
 #define  TempSize   5000
 #define  CFGFILE    L"tsdconfig.xml"
-#define  VERSION    L"103"
+#define  VERSION    L"113" 
 #define  NO_ST FALSE
 #define  CODEPAGE  CP_UTF8	//1С работает только с кодировкой UTF8 а windows только с 1251 нужно постоянно конвертировать
 #define WSAGETSELECTERROR(lParam)  HIWORD(lParam)
 #define WSAGETSELECTEVENT(lParam)  LOWORD(lParam)
 #define NELEMS(a)  (sizeof(a) / sizeof((a)[0]))
 /** Prototypes **************************************************************/
+static LRESULT CALLBACK CrossForm(HWND, UINT, WPARAM, LPARAM);
+
 static LRESULT CALLBACK MainDlgProc(HWND, UINT, WPARAM, LPARAM);
 static LRESULT CALLBACK command1Proc(HWND, UINT, WPARAM, LPARAM);
 static LRESULT CALLBACK GoodsListProc(HWND, UINT, WPARAM, LPARAM);
@@ -45,15 +50,13 @@ static LRESULT CALLBACK InfoProc(HWND, UINT, WPARAM, LPARAM);
 static LRESULT CALLBACK Vopros(HWND, UINT, WPARAM, LPARAM);
 static LRESULT CALLBACK ScanForm(HWND, UINT, WPARAM, LPARAM);
 static LRESULT CALLBACK DefragProc(HWND, UINT, WPARAM, LPARAM);
-
+static _Bool decodebase64(char *, wchar_t *, _Bool);
 static void getform1c();
 static void refreshtree(HWND);
-static _Bool waitforServer(HWND, _Bool);
-static _Bool waitforServerList(HWND, _Bool);
 
 
-typedef
-int NDIS_STATUS, *PNDIS_STATUS;
+//typedef
+//int NDIS_STATUS, *PNDIS_STATUS;
 
 //enum states{petya,vasya,stop}state;
 
@@ -206,8 +209,11 @@ struct guids {
 	int kolvo;
 	int Param;
 	HTREEITEM hti;
-}    *uuid, tmp[3][ScanBuf];
+}    *uuid;	//, tmp[3][ScanBuf];
+
 //HMENU hPopupMenu;
+static int GreenKey;
+static int ScanKey;
 static _Bool UseMotorolla = TRUE;
 static int tab1l;	//размер 1 таблицы сканов 
 static int tab2l;	//размер 2 таблицы сканов 
@@ -250,6 +256,7 @@ static long int editc;	//флаг сейчас редактируется текст в ячейке
 static ULONG lastoperation;
 static unsigned long int tekpos;	//текущая позиция курсора в списке
 RECT rect;
+static UINT8 HardwareVersion[5];
 //wchar_t filialname[300];
 //wchar_t filialguid[200];
 wchar_t zagolovokokna[100];	//срока которая передается в 1с для получения расположения элементов формы
@@ -296,11 +303,8 @@ void WaitBox(_Bool wait)
 //
 void SipDown(HWND hwnd)
 {
-
-
 	SIPINFO *pSipInfo = (SIPINFO *)malloc(sizeof(SIPINFO));
 	memset(pSipInfo, 0, sizeof(SIPINFO));
-
 	BOOL res = SipGetInfo(pSipInfo);
 	pSipInfo->fdwFlags = SIPF_OFF;
 	res = SipSetInfo(pSipInfo);
@@ -323,6 +327,7 @@ void SipDown(HWND hwnd)
 	sip = FindWindow(TEXT("MS_SIPBUTTON"), NULL);
 	ShowWindow(sip, SW_HIDE);
 }
+
 //функция выключающая звук 
 _Bool initmute(HWND hwnd, DWORD hInstance)
 {
@@ -437,6 +442,8 @@ void SoundOK(_Bool isOK)
 		_PlaySound(TEXT("SystemAsterisk"), NULL, SND_ALIAS);
 	//doLeds(isOK);
 }
+
+
 //функция удаленного получения снмка экрана устройства
 //LPBYTE screenshot(wchar_t *filename)
 //{
@@ -516,6 +523,9 @@ void SoundOK(_Bool isOK)
 //получаем данные о заряде батареи
 void getbat(wchar_t *text)
 {
+
+//int GetWifiState(void)
+
 	SYSTEM_POWER_STATUS_EX2 ps2;
 	GetSystemPowerStatusEx2(&ps2, sizeof(ps2), TRUE);
 	wsprintf(text, L"BackupBatteryVoltage=%d:BackupBatteryLifePercent=%d:BatteryCurrent=%d:BatteryVoltage=%d:BatteryTemperature=%d:ACLineStatus=%d:BatteryAverageCurrent=%d:BackupBatteryFlag=%d:BackupBatteryFullLifeTime=%u:BackupBatteryLifeTime=%u:BatteryAverageInterval=%d:BatteryFlag=%d:BatterymAHourConsumed=%d:BatteryFullLifeTime=%u:BatteryLifePercent=%d:LastPacketSize=%u:LastPacketTime=%d:kbitsec=%d:sndkbitsec=%d:cachemode=%d:BatteryChemistry=%d", ps2.BackupBatteryVoltage, ps2.BackupBatteryLifePercent, ps2.BatteryCurrent, ps2.BatteryVoltage, ps2.BatteryTemperature, ps2.ACLineStatus, ps2.BatteryAverageCurrent, ps2.BackupBatteryFlag, ps2.BackupBatteryFullLifeTime, ps2.BackupBatteryLifeTime, ps2.BatteryAverageInterval, ps2.BatteryFlag, ps2.BatterymAHourConsumed, ps2.BatteryFullLifeTime, ps2.BatteryLifePercent, packetsize, timeforpacket, kbitsec, sndkbitsec, (int)cachemode, ps2.BatteryChemistry);
@@ -631,8 +641,88 @@ void getscanline(HWND wnd, wchar_t *code)
 	wcscpy(code, scanline);
 	//if(wcslen(code)>2)_PlaySound(TEXT("Menu Selection"), NULL, SND_ALIAS);
 }
+
+void showOverlayText(wchar_t *text, int lfHeight, int lfWidth, int color, int slp, _Bool snd)
+{
+
+	HDC dc = GetDC(0);
+	RECT rc;
+	HWND hw = GetDesktopWindow();
+	GetWindowRect(hw, &rc);
+
+
+	HDC hdcCop = CreateCompatibleDC(dc);
+	int x = GetSystemMetrics(SM_CXSCREEN);
+	int y = GetSystemMetrics(SM_CYSCREEN);
+	BITMAPINFO *pbmi;
+	pbmi = (BITMAPINFO *)malloc(sizeof(BITMAPINFOHEADER));
+	pbmi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	pbmi->bmiHeader.biWidth = x;
+	pbmi->bmiHeader.biHeight = y;
+	pbmi->bmiHeader.biPlanes = 1;
+	pbmi->bmiHeader.biBitCount = 24;
+	pbmi->bmiHeader.biCompression = BI_RGB;
+	BYTE *rawBits;
+	HBITMAP HBM = CreateDIBSection(NULL, pbmi, DIB_RGB_COLORS, (void **)&rawBits, NULL, 0);
+	SelectObject(hdcCop, HBM);
+	BitBlt(hdcCop, 0, 0, x, y, dc, 0, 0, SRCCOPY);
+
+	SoundOK(snd);
+
+
+
+
+	HFONT fnt;
+	LOGFONT lgfnt;
+	wcscpy(lgfnt.lfFaceName, L"Wingdings");
+	fnt = (HFONT)SendMessage(hw, WM_GETFONT, 0, 0);
+	lgfnt.lfHeight = lfHeight;
+	lgfnt.lfWidth = lfWidth;
+	lgfnt.lfEscapement = 0;
+	lgfnt.lfOrientation = 0;
+	lgfnt.lfWeight = 400;
+	lgfnt.lfCharSet = RUSSIAN_CHARSET;
+	lgfnt.lfOutPrecision = OUT_DEFAULT_PRECIS;
+	lgfnt.lfClipPrecision = CLIP_DEFAULT_PRECIS;
+	lgfnt.lfPitchAndFamily = FF_DONTCARE;
+	lgfnt.lfQuality = DEFAULT_QUALITY;
+	lgfnt.lfItalic = FALSE;
+	lgfnt.lfUnderline = FALSE;
+	lgfnt.lfStrikeOut = FALSE;
+	fnt = (HFONT)CreateFontIndirect(&lgfnt);
+
+	rc.top = 0;
+	rc.bottom = lgfnt.lfHeight;
+	rc.right = lgfnt.lfWidth * (wcslen(text) + 1);
+	//HBRUSH br = CreateSolidBrush(65535 - color);
+	//SelectObject(dc, br);
+	//FillRect(dc, &rc, br);
+	//DeleteObject(br);
+	SetTextColor(dc, color);
+	SelectObject(dc, fnt);
+	SetBkMode(dc, TRANSPARENT);
+	DrawText(dc, text, wcslen(text), &rc, DT_NOCLIP | DT_WORDBREAK);
+	Sleep(100);
+	BitBlt(dc, 0, 0, x, y, hdcCop, 0, 0, SRCAND);
+	Sleep(400);
+
+	SetTextColor(dc, color >> 2);
+//  SetBkMode(dc, TRANSPARENT);
+	DrawText(dc, text, wcslen(text), &rc, DT_NOCLIP | DT_WORDBREAK);
+	BitBlt(dc, 0, 0, x, y, hdcCop, 0, 0, SRCPAINT);
+	DeleteObject(fnt);
+
+	Sleep(100);
+
+	BitBlt(dc, 0, 0, x, y, hdcCop, 0, 0, SRCCOPY);
+	DeleteObject(HBM);
+
+
+}
+
+
 //окно с текстом и кнопкой 
-void ShowError(HWND hwndDlg, wchar_t *text)
+void ShowError(int timeout, HWND hwndDlg, wchar_t *text)
 {
 	wchar_t errscn[100];
 	EmptyClipboard();
@@ -662,6 +752,30 @@ void ShowError(HWND hwndDlg, wchar_t *text)
 	//SetWindowLong(GetDlgItem(hwndDlg, 4500), GWL_STYLE, ES_MULTILINE | ES_AUTOVSCROLL);
 	//SetWindowText(GetDlgItem(hwndDlg, 4500), text);
 }
+
+
+
+//интерактивный ответ на вопрос из 1с
+int ShowCrossForm(HWND hwndDlg, wchar_t *text1, wchar_t *text2, int i, _Bool beep)
+{
+	//wcscpy(zagolovokokna, zagolovok);
+	//wcscpy(label1, vopros);
+	//wcscpy(knopkadalee, kudaotvet);
+	tekpos = i;
+	tekWnd = hwndDlg;
+//  KillTimer(hwndDlg, WM_USER + 2);
+//  KillTimer(hwndDlg, WM_USER + 1);
+	SoundOK(beep);	//)
+//  tomainmenu = FALSE;
+	DialogBox(g_hInstance, MAKEINTRESOURCE(ErrorForm), hwndDlg, (DLGPROC)CrossForm);
+//  SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
+//  SetTimer(hwndDlg, WM_USER + 1, 1000, NULL);
+	return tekpos;
+}
+
+
+
+
 //интерактивный ответ на вопрос из 1с
 int sendOtvetVopros(HWND hwndDlg, wchar_t *kudaotvet, wchar_t *zagolovok, wchar_t *vopros, wchar_t *numb, int i)
 {
@@ -678,7 +792,6 @@ int sendOtvetVopros(HWND hwndDlg, wchar_t *kudaotvet, wchar_t *zagolovok, wchar_
 	SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
 	SetTimer(hwndDlg, WM_USER + 1, 1000, NULL);
 	return tekpos;
-
 }
 
 //
@@ -695,7 +808,21 @@ int GetKeyboardState(BYTE *Keys)
 	return r;
 }
 
-
+_Bool isPressed(int key)
+{
+	if (GetAsyncKeyState(key) != 0)
+	{
+		if (Pressed[key] == 0)
+		{
+			lastoperation = GetTickCount();
+			Pressed[key] = 1;
+			return true;
+		}
+		return false;
+	}
+	Pressed[key] = 0;
+	return false;
+}
 //получение локального айпи адреса
 void localip(void)
 {
@@ -709,7 +836,7 @@ void localip(void)
 //  ip.S_un.S_un_b.s_b4++;
 }
 
-//парсинг
+//парсинг---------------без regexp - на момент написания начальной версии прицепить библиотеку regexp к проекту он возрастал до 200 кб 
 int searchblok(char *src, int dlina, char *srch)
 {
 
@@ -751,6 +878,22 @@ int sstr(char *t, char *s)
 	}
 	return i;
 }
+
+
+int xmlgettag(int start, char *valuename)
+{
+	//parsing return and them > and <
+	unsigned int z = 0;
+	//memset(otvet, 0, BUFSIZE);
+	z = sstr(szData + start, valuename);
+	int i = start + z;
+	if (z == 0)
+		return -1;
+	z = sstr(szData + i, ">");
+	i += z;
+	return i;
+}
+
 //парсинг
 int xmlvalue(int start, char *valuename)
 {
@@ -856,7 +999,7 @@ void sendws1(wchar_t *text)
 	//syntaxchk(text);
 	//MyMessageWait(L".");
 	MyMessageBox(0, L"connect 1С.", 0, 100);
-
+	InternetAttemptConnect(0);
 	int i;
 	HANDLE hFile;
 	DWORD dwNumberOfBytesRead;
@@ -874,7 +1017,7 @@ void sendws1(wchar_t *text)
 	wchar_t head[] = L"\nAccept: */*\nSOAPAction: \"\"\nContent-Type: text/xml; charset=utf-8";
 	HINTERNET hInternet = InternetOpen(L"", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
 	//INTERNET_OPTION_CONNECT_TIMEOUT = 2
-	int lTimeoutInMs = 60000;
+	int lTimeoutInMs = 3000;
 	InternetSetOption(hInternet, INTERNET_OPTION_CONNECT_TIMEOUT, &lTimeoutInMs, 4);
 	//MyMessageWait(L" ");
 	HINTERNET hConnect = InternetConnectW(hInternet, serverWS, prt, usr, psw, INTERNET_SERVICE_HTTP, 0, 1);
@@ -940,6 +1083,177 @@ void sendws1(wchar_t *text)
 	//MyConnect = InternetConnectW(MyInternet, serverWS, prt, usr, psw, INTERNET_SERVICE_HTTP, 0, 1);
 	//MyMessageWait(L".");
 //}
+_Bool checkEndofStream(){
+return searchblok(szData, dwBytesRead, "</m:return>") > 3;
+}
+
+
+_Bool sendwsupd(wchar_t *text, wchar_t *outfile)
+{
+	wchar_t xmlstr1[TempSize];
+	wsprintf(xmlstr1, L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:updatefirmware xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:version xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n		xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">%s</m:version>\n	</m:updatefirmware>\n	</soap:Body>\n</soap:Envelope>", text);
+	_Bool rr = TRUE;
+	MyMessageBox(0, L"connect 1С.", 0, 100);
+
+	int i;
+	HANDLE hFile;
+	DWORD dwNumberOfBytesRead;
+	memset(szData, 0, BUFSIZE);
+	dwBytesRead = 0;
+	wchar_t usr[150], psw[150];
+	char answer[300];
+	i = WideCharToMultiByte(CODEPAGE, 0, UserWS, wcslen(UserWS), answer, 300, 0, 0);
+	memset(usr, 0, sizeof(usr));
+	MultiByteToWideChar(CP_ACP, 0, answer, i, usr, sizeof(usr));
+	memset(answer, 0, sizeof(answer));
+	i = WideCharToMultiByte(CODEPAGE, 0, PswWS, wcslen(PswWS), answer, 300, 0, 0);
+	memset(psw, 0, sizeof(psw));
+	MultiByteToWideChar(CP_ACP, 0, answer, i, psw, sizeof(psw));
+	wchar_t head[] = L"\nAccept: */*\nSOAPAction: \"\"\nContent-Type: text/xml; charset=utf-8";
+	HINTERNET hInternet = InternetOpen(L"", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+	//INTERNET_OPTION_CONNECT_TIMEOUT = 2
+	int lTimeoutInMs = 60000;
+	InternetSetOption(hInternet, INTERNET_OPTION_CONNECT_TIMEOUT, &lTimeoutInMs, 4);
+	//MyMessageWait(L" ");
+	HINTERNET hConnect = InternetConnectW(hInternet, serverWS, prt, usr, psw, INTERNET_SERVICE_HTTP, 0, 1);
+	MyMessageWait(L".");
+	HINTERNET hRequest = HttpOpenRequest(hConnect, L"POST", serviceWS, NULL, NULL, 0, INTERNET_FLAG_KEEP_CONNECTION, 1);
+	if (hRequest == NULL)
+	{
+		MyMessageBox(0, L"hRequest", 0, 0);
+		Sleep(1000);
+		goto ehit;
+	}
+
+	i = WideCharToMultiByte(CODEPAGE, 0, xmlstr1, -1, szData, BUFSIZE, 0, 0);
+	//TxtFilter(szData);
+	int szdta = strlen(szData);
+	_Bool bSend = HttpSendRequest(hRequest, head, 65, szData, szdta);	//собсно посылаем нужные данные xml в 1с  wcslen(head)=65
+
+	if (!bSend)
+	{
+		MyMessageBox(0, L"send fault", 0, 100);
+		Sleep(500);
+		goto ehit;
+	}
+	if (hRequest != NULL)
+		MyMessageBox(0, L"Чтение ответа..", 0, 100);
+
+
+	_Bool theend = FALSE;
+	_Bool bRead;
+	rr = FALSE;
+	_Bool firsttime = TRUE;
+	unsigned long startread;
+	int tt=0;
+	while (!theend)
+	{
+//if(tt<4) strncpy(+(tt<4?tt:0)
+		bRead = InternetReadFile(hRequest, szData, BUFSIZE, &dwBytesRead);	//принимаем данные от 1с .. тут все побыстрей как то
+startread = 0;
+
+		//сначала нужно найти нужный тэг а затем докачивать
+		if (!bRead)
+		{
+			theend = true;
+			rr = TRUE;
+			MyMessageBox(0, L"Ошибка чтения", 0, 100);
+			return FALSE;
+		}
+		MyMessageBox(0, L"   . ", 0, 100);
+
+		if (firsttime)
+		{
+			startread= xmlgettag(0, "return"); 
+			firsttime = FALSE;
+		}
+
+
+
+
+//--------------------------------------	
+	//_Bool rr = FALSE;
+	//HANDLE h = CreateFile(outfile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, isCreate ? CREATE_ALWAYS : OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	//if (h == INVALID_HANDLE_VALUE)
+		//return FALSE;
+	//if (isCreate)
+		//SetFilePointer(h, 0, NULL, FILE_END);
+	//unsigned char in[4], out[3], v;
+	//int i, len,FileLen = BUFSIZE;
+	//_Bool theend = FALSE;
+
+	//while (!theend)
+	//{
+
+		//for (len = 0, i = 0; i < 4 && !theend; i++)
+		//{
+			//v = 0;
+			//while (!theend && v == 0)
+			//{
+				//v = (unsigned char)*(infile++); 
+				//FileLen--;	
+				////*tt = i;
+	//if(FileLen<0)return true;
+				//theend = (v == 0);
+
+				//v = (unsigned char)((v < 43 || v > 122) ? 0 : cd64[v - 43]);	//левые символы кроме base64 интерпретируются как выход
+				//if (v)
+					//v = (unsigned char)((v == '$') ? 0 : v - 61);	//смещение карты символов вначало
+
+			//}
+
+			//if (!theend)
+			//{
+				//len++;
+				//if (v)
+				//{
+					//in[i] = (unsigned char)(v - 1);
+				//}
+			//}
+			//else
+			//{
+				//in[i] = 0;
+			//}
+		//}
+		//if (len)
+		//{
+			//decodeblock(in, out);
+			//if (!WriteFile(h, out, 3, &i, NULL))
+				//return FALSE;
+		//}
+	//}
+
+	//CloseHandle(h);
+//----------------------------
+
+
+
+
+			if (!decodebase64(szData+startread, outfile, FALSE))
+			{
+				theend = TRUE;
+				rr = TRUE;
+				MyMessageBox(0, L" read error  ", 0, 100);
+
+			}
+
+		MyMessageBox(0, L" .  ", 0, 100);
+		if (dwBytesRead < BUFSIZE)
+			theend = TRUE;
+
+	}
+  ehit:
+	InternetCloseHandle(hRequest);
+	// закрываем сессию
+	InternetCloseHandle(hConnect);
+	// закрываем WinInet
+	InternetCloseHandle(hInternet);
+	memset(wzData, 0, BUFSIZE);
+	MyMessageWait(L" ");
+	return rr;
+}
+
+
 
 ////прием/передача пакета
 void CloseConnection()
@@ -989,7 +1303,7 @@ void CloseConnection()
 
 	//i = WideCharToMultiByte(CODEPAGE, 0, text, -1, szData, BUFSIZE, 0, 0);
 	//int szdta = strlen(szData);
-	//_Bool bSend = HttpSendRequest(hRequest, head, 65, szData, szdta);	//собсно посылаем нужные данные xml в 1с  wcslen(head)=65
+	//_Bool bSend = HttpSendRequest(hRequest, head, 65, szData, szdta); //собсно посылаем нужные данные xml в 1с  wcslen(head)=65
 	//if (!bSend)
 	//{
 		//MyMessageBox(0, L"send fault", 0, 100);
@@ -999,10 +1313,10 @@ void CloseConnection()
 	//if (hRequest != NULL)
 		//MyMessageBox(0, L"Чтение ответа..", 0, 100);
 	//int fps = GetTickCount();
-	//_Bool bRead = InternetReadFile(hRequest, szData, BUFSIZE, &dwBytesRead);	//принимаем данные от 1с .. тут все побыстрей как то
+	//_Bool bRead = InternetReadFile(hRequest, szData, BUFSIZE, &dwBytesRead);  //принимаем данные от 1с .. тут все побыстрей как то
 	//fps = GetTickCount() - fps;
 	//if (fps > 0)
-		//kbitsec = (((dwBytesRead) << 3) / fps);	//замер скорости
+		//kbitsec = (((dwBytesRead) << 3) / fps);   //замер скорости
 	////MyMessageWait(L" ");
 	//if (!bRead)
 		//MyMessageBox(0, L"Ошибка чтения", 0, 100);
@@ -1017,17 +1331,20 @@ void sendws(wchar_t *text)
 {
 	//if (ReconnectAllways)
 	//{
-		sendws1(text);
+	sendws1(text);
 	//}
 	//else
 	//{
-		//sendws2(text);
+	//sendws2(text);
 	//}
 }
 
 //Проверка обновлений на сервере
 void sndupdate(wchar_t *text)
 {
+
+
+
 	wchar_t xmlstr[] = L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:updatefirmware xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:version xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n		xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">%s</m:version>\n	</m:updatefirmware>\n	</soap:Body>\n</soap:Envelope>";
 	wchar_t xmlstr1[TempSize];
 	wsprintf(xmlstr1, xmlstr, text);
@@ -1231,14 +1548,14 @@ void autofontialog(HWND hwndDlg, int xsize, int ysize)
 //{
 	//HWND ow, hw = NULL;
 	//unsigned long int k = 0, l = 0, m = 0, p = 0, o = 0, n = 0, x = 0, y = 0;
-	//RECT form;	//__try{
+	//RECT form;    //__try{
 	//GetWindowRect(hwndDlg, &form);
 	////x = GetSystemMetrics(SM_CXSCREEN);
 	////y = GetSystemMetrics(SM_CYSCREEN);
 	////SetWindowPos(hwndDlg,hwndDlg,0,0,x,y,SWP_NOZORDER);
 	//MoveWindow(hwndDlg, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), TRUE);
 	//hw = GetNextDlgTabItem(hwndDlg, 0, FALSE);
-	//ow = hw;	//}__finally{}
+	//ow = hw;  //}__finally{}
 	//while (hw != NULL)
 	//{
 		////__try{
@@ -1292,12 +1609,12 @@ _Bool checkreturn(HWND hwndDlg)
 		else
 			MultiByteToWideChar(CODEPAGE, 0, szData, strlen(szData), wotvet, BUFSIZE);
 
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		return TRUE;
 	}
 	if (dwBytesRead < 1)
 	{
-		ShowError(hwndDlg, L"Ошибка сети");
+		ShowError(0, hwndDlg, L"Ошибка сети");
 		return TRUE;
 	}
 	return FALSE;
@@ -1377,14 +1694,15 @@ void decodeblock(unsigned char in[4], unsigned char out[3])
 	out[2] = (unsigned char)(((in[2] << 6) & 0xc0) | in[3]);
 }
 
-_Bool decodebase64(char *infile, wchar_t *outfile)
-{
+_Bool decodebase64(char *infile, wchar_t *outfile, _Bool isCreate)
+{	
 	_Bool rr = FALSE;
-	HANDLE h = CreateFile(outfile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE h = CreateFile(outfile, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, isCreate ? CREATE_ALWAYS : OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (h == INVALID_HANDLE_VALUE)
 		return FALSE;
+	if (!isCreate)SetFilePointer(h, 0, NULL, FILE_END);
 	unsigned char in[4], out[3], v;
-	int i, len;
+	int i, len,FileLen = BUFSIZE;
 	_Bool theend = FALSE;
 
 	while (!theend)
@@ -1395,11 +1713,15 @@ _Bool decodebase64(char *infile, wchar_t *outfile)
 			v = 0;
 			while (!theend && v == 0)
 			{
-				v = (unsigned char)*(infile++);
+				v = (unsigned char)*(infile++); 
+				FileLen--;	
+				//*tt = i;
+	if(FileLen<0)return true;
 				theend = (v == 0);
-				v = (unsigned char)((v < 43 || v > 122) ? 0 : cd64[v - 43]);
+
+				v = (unsigned char)((v < 43 || v > 122) ? 0 : cd64[v - 43]);	//левые символы кроме base64 интерпретируются как выход
 				if (v)
-					v = (unsigned char)((v == '$') ? 0 : v - 61);
+					v = (unsigned char)((v == '$') ? 0 : v - 61);	//смещение карты символов вначало
 
 			}
 
@@ -1433,7 +1755,7 @@ _Bool decodebase64(char *infile, wchar_t *outfile)
 static _Bool checkUpdate(void)
 {
 	wchar_t selfname[300];
-	_Bool rr;
+	_Bool rr; int tt;
 	MyMessageBox(0, L"Update ", 0, 100);
 
 	wcscpy(UserWS, L"WebConnection");
@@ -1441,20 +1763,28 @@ static _Bool checkUpdate(void)
 	wcscpy(selfname, selfdir);
 	wcscat(selfname, L"tsdupdate.exe");
 	DeleteFile(selfname);
-	sndupdate(VERSION);	//посылаем пакет в 1с с текущим номером верии 
-	if (xmlvalue(0, "return") < 1)
+	if (FALSE)
 	{
-		MyMessageBox(0, L"NO UPDATE", 0, 100);
-		return FALSE;
-	}
 
-	rr = decodebase64(otvet, selfname);
-	if (!rr)
+		rr =  !sendwsupd(VERSION, selfname);
+	}
+	else
 	{
-		MyMessageBox(0, L"download error", 0, 100);
-		return rr;
-	}
+		sndupdate(VERSION);	//посылаем пакет в 1с с текущим номером верии 
+		if (xmlvalue(0, "return") < 1)
+		{
+			MyMessageBox(0, L"NO UPDATE", 0, 100);
+			return FALSE;
+		}
 
+		rr = decodebase64(otvet, selfname, TRUE);
+		
+
+	}
+		if (!rr){
+			MyMessageBox(0, L"download error", 0, 100);
+			return rr;
+		}
 	STARTUPINFO si = { sizeof(STARTUPINFO) };
 	si.dwFlags = 0;
 	si.dwFlags = 0x21;
@@ -1495,7 +1825,7 @@ void sendGoodslist(wchar_t *Operation, wchar_t *code, wchar_t *name, wchar_t *ko
 {
 	wchar_t txt[200], info[1000];
 //metka:
-	//wchar_t temp[5000];
+	wchar_t kol[50];
 	NowSending = TRUE;
 
 	memset(wzData, 0, BUFSIZE);
@@ -1529,7 +1859,8 @@ void sendGoodslist(wchar_t *Operation, wchar_t *code, wchar_t *name, wchar_t *ko
 	MultiByteToWideChar(CODEPAGE, 0, szData, packetsize, wzData, BUFSIZE);
 	if (xmlgetw(0, L"return") < 2)
 	{
-		if (xmlgetw(0, L"detail") < 2)
+		if(!checkEndofStream())ShowError(0, NULL, L"Ошибка сети, связь прервана");
+		if (xmlgetw(0, L"detail") < 2 || !checkEndofStream())
 		{
 			strcpy(szData, " ----- <detail> Произошла ошибка сети, Network error </detail> </end>");
 			wcscpy(wzData, L" ----- <detail> Произошла ошибка сети, Network error </detail> <return>");
@@ -1550,7 +1881,7 @@ void sendGoodslist(wchar_t *Operation, wchar_t *code, wchar_t *name, wchar_t *ko
 	if (wcscmp(wotvet, L"ЗакрытьСессию") == 0)
 	{
 		xmlgetw(3, L"<m:Наименов");
-		ShowError(NULL, wotvet);
+		ShowError(0, NULL, wotvet);
 		clearExit();
 	}
 	NowSending = FALSE;
@@ -1559,32 +1890,31 @@ void sendGoodslist(wchar_t *Operation, wchar_t *code, wchar_t *name, wchar_t *ko
 	{
 		//KillTimer(
 		xmlgetw(3, L"<m:Наименов");
-		ShowError(NULL, wotvet);
+		ShowError(0, NULL, wotvet);
 	}
 
 	if (wcscmp(wotvet, L"НетСообщений") == 0)
 		dwThread == 0;
 
-	if (wcscmp(wotvet, L"ЕстьСообщения") == 0)
-	{
-		//if (dwThread == 0)	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)getsms, NULL, 0, &dwThread);
-	}
-	if (wcscmp(wotvet, L"ЗадатьВопрос") == 0)	//посылаем интерактивный вопрос пользователю с дальнейшими действиями
-	{
-		if (xmlgetw(3, L"<m:Количеств") <= 0)
-			return;
-		int i = _wtoi(wotvet);
-		xmlgetw(3, L"<m:Наименов");
-		wsprintf(txt, L"%u", MessageBox(0, wotvet, L"Вопрос", MB_ICONINFORMATION | MB_TOPMOST | MB_YESNO));
-		sendGoodslist(L"ОтветНаВопрос", txt, txt, txt, TRUE);	// и ответ пользователя снова посылаем в базу этой же функцикей
-		return;
-	}
+	//if (wcscmp(wotvet, L"ЗадатьВопрос") == 0) //посылаем интерактивный вопрос пользователю с дальнейшими действиями
+	//{
+	//if (xmlgetw(3, L"<m:Количеств") <= 0)
+	//return;
+	//int i = _wtoi(wotvet);
+	//wcscpy(kol,wotvet);
+	//xmlgetw(3, L"<m:Наименов");
+	//i = sendOtvetVopros(0,L"ОтветНаВопрос", wotvet, kol, kolvo, i);
+	//return;
+	//wsprintf(txt, L"%u", MessageBox(0, wotvet, L"Вопрос", MB_ICONINFORMATION | MB_TOPMOST | MB_YESNO));
+	//sendGoodslist(L"ОтветНаВопрос", txt, zagolovokokna, wotvet, TRUE);    // и ответ пользователя снова посылаем в базу этой же функцикей
+	//return;
+	//}
 
 	if (wcscmp(wotvet, L"ОбновитьВерсиюПрошивки") == 0)
 	{
 		xmlgetw(3, L"<m:Наименов");
 		debugmode = TRUE;
-		ShowError(NULL, wotvet);
+		ShowError(0, NULL, wotvet);
 		if (checkUpdate())
 			clearExit();
 	}
@@ -1593,7 +1923,7 @@ void sendGoodslist(wchar_t *Operation, wchar_t *code, wchar_t *name, wchar_t *ko
 	{
 		//  ExitWindowsEx(8,0);
 		xmlgetw(3, L"<m:Наименов");
-		ShowError(NULL, wotvet);
+		ShowError(0, NULL, wotvet);
 		clearExit();
 	}
 
@@ -1618,7 +1948,7 @@ void sndxdto(wchar_t *text, wchar_t *command)
 	xmlgetw(3, L"<m:Наименов");
 	return;
 
-	//wchar_t xmlstr[] = L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:TSD xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ШК xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n		xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">%s</m:ШК>\n	<m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n		xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">%s</m:ВидОперации>\n	</m:TSD>\n	</soap:Body>\n</soap:Envelope>";
+	//wchar_t xmlstr[] = L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:TSD xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ШК xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n     xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">%s</m:ШК>\n <m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"\n      xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">%s</m:ВидОперации>\n    </m:TSD>\n  </soap:Body>\n</soap:Envelope>";
 	//wchar_t xmlstr1[TempSize];
 	//wsprintf(xmlstr1, xmlstr, text, command);
 	//sendws(xmlstr1);
@@ -1655,6 +1985,7 @@ int PASCAL WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpszCmdL
 	NowSending = FALSE;
 	MyMessageWait(VERSION);	// отображаем на экране номер версии 
 	Sleep(2000);
+	tab1l = 1;
 	//MessageBox(0,L"2",L"2",0);
 	debugmode = TRUE;
 	inthread = FALSE;
@@ -1700,15 +2031,21 @@ int PASCAL WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpszCmdL
 		}
 	}
 	else
-	{
+	{	//программа запущена из обновления
+		//DeleteFile(
 		wcscpy(thisfile, selfdir);
 		wcscat(thisfile, L"testdialog.exe");
+		//GetModuleFileName(NULL, updfile, 255);		
 		i = 15;
 		while (!DeleteFile(thisfile) && i > 0)
-		{
-			Sleep(1000);
+		{	MyMessageWait(L"Попытка обновления.");
+			Sleep(500);
 			i--;
+			MyMessageWait(L"ПОПЫТКА ОБНОВЛЕНИЯ.");
+			Sleep(500);
+			__try{CopyFile(updfile, thisfile,FALSE);}__except(-1){};
 		}
+		MyMessageWait(L"                        ");
 		GetModuleFileName(NULL, updfile, 255);
 		MoveFile(updfile, thisfile);
 	}
@@ -1720,7 +2057,8 @@ int PASCAL WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpszCmdL
 		SetForegroundWindow((HWND) ((ULONG)hwnd | 0x01));
 		return 0;
 	}
-
+	GreenKey = 119;
+	ScanKey = 0xee;
 	HANDLE hLib = LoadLibrary(L"DeviceAPI.Dll");
 	UseMotorolla = (hLib != NULL);
 	if (UseMotorolla)
@@ -1732,7 +2070,16 @@ int PASCAL WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpszCmdL
 		//private static extern int Barcode1D_scan(byte[] pszData);
 		Barcode1D_free = GetProcAddress(hLib, (L"Barcode1D_free"));
 		//private static extern void Barcode1D_free();
-		//StartShake(20000);
+		//HardwareVersion_Ex(UINT8 *pszData);
+		//HardwareVersion_Ex = GetProcAddress(hLib, (L"HardwareVersion_Ex"));;
+		////StartShake(20000);
+		//HardwareVersion_Ex(HardwareVersion);
+		////wsprintf(updfile,L"%x",HardwareVersion[0]);
+		////MyMessageWait(updfile); // отображаем на экране номер версии
+		////Sleep(5000);
+		//if(HardwareVersion[0] != 0){
+		//ScanKey = 0xee; 
+		//}
 		Barcode1D_init();
 		Barcode1D_scan(szData);
 	}
@@ -1788,7 +2135,7 @@ int selectNext(HWND hwndDlg, wchar_t *txt)
 	if (i < 1)
 	{
 		xmlgetw(0, L"detail");
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		MyMessageBox(0, wotvet, 0, 100);
 		return -1;
 	}
@@ -1828,7 +2175,7 @@ void Filltabl(HWND hwndDlg, unsigned long long *n)
 		if (wcscmp(wotvet, L"Ошибка") == 0 || wcscmp(wotvet, L"Error") == 0)
 		{
 			xmlgetw(i, L"<m:Наименов");
-			ShowError(hwndDlg, wotvet);
+			ShowError(0, hwndDlg, wotvet);
 			MyMessageBox(0, wotvet, 0, 100);
 			continue;
 		}
@@ -1927,7 +2274,7 @@ void Filltabl(HWND hwndDlg, unsigned long long *n)
 }
 
 
-_Bool getformparse()
+_Bool getformparse(int ii)
 {
 	unsigned long long subItem, e, i, z, f, b, d, r, t, u, v;
 	RECT rc;
@@ -1937,7 +2284,7 @@ _Bool getformparse()
 	wchar_t code[200], tovar[2000], kolvo[200];
 	HWND hwndDlg = tekWnd;
 	GetWindowRect(hwndDlg, &rc);
-	i = 0;
+	i = ii;
 	z = 3;
 	//wcscpy(oldsession,L"");
 	int c = 0;
@@ -2004,7 +2351,7 @@ _Bool getformparse()
 		{
 			KillTimer(hwndDlg, WM_USER + 1);
 			KillTimer(hwndDlg, WM_USER + 2);
-			ShowError(hwndDlg, wotvet);
+			ShowError(0, hwndDlg, wotvet);
 			EndDialog(hwndDlg, f);
 			return FALSE;
 		}
@@ -2063,7 +2410,7 @@ _Bool getformparse()
 			lvc.pszText = tovar;
 			lvc.cchTextMax = wcslen(tovar);
 			SendMessage(GetDlgItem(hwndDlg, list), LVM_INSERTCOLUMN, 0, (LPARAM) & lvc);
-			ListView_SetBkColor(GetDlgItem(hwndDlg, list), RGB(250, 250, 250));
+			//ListView_SetBkColor(GetDlgItem(hwndDlg, list), RGB(250, 250, 250));
 			continue;
 		}
 		if (wcscmp(code, L"ПоменятьШрифт") == 0)
@@ -2079,6 +2426,16 @@ _Bool getformparse()
 			continue;
 		}
 
+		//if (wcscmp(code, L"SetBkColor") == 0){
+		//HWND hwndd = GetDlgItem(hwndDlg, _wtoll(tovar));
+		//HDC hdc=GetDC(hwndd);
+
+		//SetTextColor(hdc, f);
+		//SetBkColor(hdc, f); /* ffffff=white background while parameter=0x00bbggrr bluegreenred */
+		//ReleaseDC(hwndd,hdc);
+
+		//continue;}
+
 		if (wcscmp(code, L"ЗаполнитьТаблицу") == 0)
 		{
 			//ListView_SetExtendedListViewStyle(GetDlgItem(hwndDlg, list), LVS_EX_ONECLICKACTIVATE | LVS_EX_GRIDLINES | LVS_EX_HEADERDRAGDROP | LVS_EX_FULLROWSELECT|LVS_EX_CHECKBOXES);
@@ -2092,7 +2449,7 @@ _Bool getformparse()
 
 		if (wcscmp(code, L"СменитьGUID") == 0)
 		{
-			wcscpy(ipadr,tovar);
+			wcscpy(ipadr, tovar);
 			continue;
 		}
 
@@ -2165,7 +2522,7 @@ static void getform1c()
 	wsprintf(code, L"%u", rc.bottom);
 	wsprintf(kolvo, L"%u", rc.right);
 	sendGoodslist(L"РазрешеныКнопки", code, zagolovokokna, kolvo, TRUE);
-	getformparse();
+	getformparse(0);
 	return;
 	//i = 0;
 	//z = 3;
@@ -2336,7 +2693,7 @@ static void getform1c()
 	//memset(wzData, 0, BUFSIZE);
 	//wcscpy(wzData, L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:ОбменТСД xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
 	//wcscat(wzData, L"Помощь");
-	//wcscat(wzData, L"</m:ВидОперации><m:Список xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"	xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
+	//wcscat(wzData, L"</m:ВидОперации><m:Список xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
 	//wcscat(wzData, L"<m:Номенклатура><m:Код>");
 	//wcscat(wzData, L"Снимок экрана");
 	//wcscat(wzData, L"</m:Код><m:Наименование>");
@@ -2370,12 +2727,12 @@ static void getform1c()
 	//HINTERNET hRequest = HttpOpenRequest(hConnect, L"POST", serviceWS, NULL, NULL, 0, INTERNET_FLAG_KEEP_CONNECTION, 1);
 	//int szdta = strlen(name);
 	//int fps = GetTickCount();
-	//_Bool bSend = HttpSendRequest(hRequest, head, 65, name, szdta);	//собсно посылаем нужные данные xml в 1с  wcslen(head)=65
+	//_Bool bSend = HttpSendRequest(hRequest, head, 65, name, szdta);   //собсно посылаем нужные данные xml в 1с  wcslen(head)=65
 	//fps = GetTickCount() - fps;
 	//if (fps > 0)
-		//sndkbitsec = (((szdta) << 3) / fps);	//замер скорости
+		//sndkbitsec = (((szdta) << 3) / fps);  //замер скорости
 
-	//_Bool bRead = InternetReadFile(hRequest, szData, BUFSIZE, &dwBytesRead);	//принимаем данные от 1с .. тут все побыстрей как то
+	//_Bool bRead = InternetReadFile(hRequest, szData, BUFSIZE, &dwBytesRead);  //принимаем данные от 1с .. тут все побыстрей как то
 	//InternetCloseHandle(hRequest);
 	//InternetCloseHandle(hConnect);
 	//InternetCloseHandle(hInternet);
@@ -2400,29 +2757,29 @@ void helpme(HWND hwndDlg)
 	////sendGoodslist(L"Помощь", zagolovokokna, otsklad, kolvo);
 	//if (xmlgetw(3, L"<m:Наименов") < 1)
 	//{
-		//xmlgetw(3, L"detail");
-		//ShowError(hwndDlg, wotvet);
-		//return;
+	//xmlgetw(3, L"detail");
+	//ShowError(0,hwndDlg, wotvet);
+	//return;
 	//}
 	//wcscpy(tovar, wotvet);
 	//if (xmlgetw(3, L"<m:Код") < 1)
 	//{
-		//xmlgetw(3, L"detail");
-		//ShowError(hwndDlg, wotvet);
-		//return;
+	//xmlgetw(3, L"detail");
+	//ShowError(0,hwndDlg, wotvet);
+	//return;
 	//}
 	//wcscpy(code, wotvet);
 	//if (xmlgetw(3, L"<m:Количеств") < 1)
 	//{
-		//xmlgetw(3, L"detail");
-		//ShowError(hwndDlg, wotvet);
-		//return;
+	//xmlgetw(3, L"detail");
+	//ShowError(0,hwndDlg, wotvet);
+	//return;
 	//}
 	//wcscpy(kolvo, wotvet);
 	//if ((wcslen(code) < 2) || (wcscmp(code, L"Error") == 0))
 	//{
-		//ShowError(hwndDlg, tovar);
-		//return;
+	//ShowError(0,hwndDlg, tovar);
+	//return;
 	//}
 
 }
@@ -2602,23 +2959,26 @@ int NextWindow(HWND hwndDlg, wchar_t *txt)
 	if (i < 1)
 	{
 		xmlgetw(0, L"detail");
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		MyMessageBox(0, wotvet, 0, 100);
 		return -1;
 	}
+
 	if (xmlgetw(i, L"<m:Номенклатур") < 1)
 		return -1;
-	if (xmlgetw(i, L"<m:Наименовани") < 1)
-		return -1;
-	wcscpy(tovar, wotvet);
-	if (xmlgetw(i, L"<m:Код") < 1)
+	i = xmlgetw(i, L"<m:Код");
+	if (i < 1)
 		return -1;
 	if (wcscmp(wotvet, L"Ошибка") == 0 || wcscmp(wotvet, L"Error") == 0)
 	{
-		ShowError(hwndDlg, tovar);
+		ShowError(0, hwndDlg, tovar);
 		return 0;
 	}
 	wcscpy(code, wotvet);
+	if (xmlgetw(i, L"<m:Наименовани") < 1)
+		return -1;
+	wcscpy(tovar, wotvet);
+
 	if (xmlgetw(i, L"<m:Количество") < 1)
 		return -1;
 
@@ -2654,6 +3014,14 @@ int NextWindow(HWND hwndDlg, wchar_t *txt)
 		prc = (DLGPROC)ScanForm;
 		d = scanfrm;
 	}
+	if (wcscmp(code, L"Окно интерактивный вопрос") == 0)
+	{
+		prc = (DLGPROC)Vopros;
+		d = Voprosfrm;
+		tekpos = i;
+	}
+
+
 	if (wcscmp(code, L"Выход") == 0)
 	{
 		tomainmenu = TRUE;
@@ -2694,18 +3062,18 @@ static _Bool DoCommands(HWND hwndDlg, wchar_t *tovar)
 		clearExit();
 		return TRUE;
 	}
-	if (wcscmp(code, L"Поиск товара") == 0)
-	{
-		wcscpy(zagolovokokna, L"Информация о товаре");
-		tomainmenu = FALSE;
-		f = DialogBox(g_hInstance, MAKEINTRESOURCE(InfoForm), NULL, (DLGPROC)InfoProc);
-		wcscpy(code, sklad);
-		if (wcscmp(code, L"Выход") == 0)
-		{
-			exitFromButton(hwndDlg);
-			return TRUE;
-		}
-	}
+	//if (wcscmp(code, L"Поиск товара") == 0)
+	//{
+		//wcscpy(zagolovokokna, L"Информация о товаре");
+		//tomainmenu = FALSE;
+		//f = DialogBox(g_hInstance, MAKEINTRESOURCE(InfoForm), NULL, (DLGPROC)InfoProc);
+		//wcscpy(code, sklad);
+		//if (wcscmp(code, L"Выход") == 0)
+		//{
+			//exitFromButton(hwndDlg);
+			//return TRUE;
+		//}
+	//}
 	if ((wcscmp(code, L"Получить задание на подбор товара") == 0) || (wcscmp(code, L"Подбор") == 0) || (wcsncmp(code, L"Подбор", 6) == 0))
 	{
 		tomainmenu = FALSE;
@@ -2761,143 +3129,8 @@ static _Bool DoCommands(HWND hwndDlg, wchar_t *tovar)
 		return TRUE;
 	}
 
-	//if (wcscmp(code, L"Подтоварка") == 0)
-	//{
-		//tomainmenu = FALSE;
-		//enabledialog(hwndDlg, FALSE);
-		//wcscpy(zagolovokokna, L"Выбор дефрагментации");
-		//wcscpy(label1, L"Место");
-		//wcscpy(knopkadalee, L"Далее");
-		//wcscpy(sklad, L"");
-		//Goodslistmode = 10;
-		//f = 130;
-		//enabledialog(hwndDlg, FALSE);
 
-		//while (Goodslistmode != 4)
-		//{
-			////if (f == 130)
-			//Goodslistmode = selectNext(hwndDlg, L"ДефрагментацияПодборЗадания");
-			//if (Goodslistmode == 37)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Список");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(goodslist), NULL, (DLGPROC)GoodsListProc);
-
-			//}
-
-			//if (Goodslistmode == 35)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Форма перемещения товара");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(GoodsTree), NULL, (DLGPROC)TreeGoodsProc);
-			//}
-
-			//if (Goodslistmode == 30)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Форма подбора товара");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(GoodsTree), NULL, (DLGPROC)TreeGoodsProc);
-			//}
-			//if (Goodslistmode == 60)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Выбор Транспорта");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(scanfrm), NULL, (DLGPROC)ScanForm);
-			//}
-			//if (Goodslistmode == 70)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Выбор Адреса Задания");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(viborzadaniya), NULL, (DLGPROC)QuestSelect);
-			//}
-			//if (Goodslistmode == 90)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Адреса");
-				//wcscpy(label1, L"Адрес");
-				//wcscpy(knopkadalee, L"Далее");
-				//wcscpy(sklad, L"");
-
-				//if (DialogBox(g_hInstance, MAKEINTRESOURCE(nasklad), NULL, (DLGPROC)command1Proc) == 130)
-				//{
-					//sendGoodslist(L"Подтвердить Дефрагментацию", sklad, otsklad, L"0", TRUE);
-
-					//if (xmlgetw(3, L"<m:Количеств") <= 0)
-					//{
-						//ShowError(NULL, wzData);
-					//}
-					//else
-						//Goodslistmode = _wtoi(wotvet);
-
-					//if (xmlgetw(3, L"<m:Код") <= 0)
-					//{
-						//ShowError(NULL, wzData);
-					//}
-
-					//if ((wcscmp(wotvet, L"Ошибка") == 0) || (wcscmp(wotvet, L"Error") == 0))
-					//{
-						//xmlgetw(3, L"<m:Наименов");
-						//ShowError(NULL, wotvet);
-
-					//}
-
-					//if (wcscmp(wotvet, L"Выход") == 0)
-					//{
-						//Goodslistmode = 4;
-					//}
-
-				//};
-			//}
-
-			//if (Goodslistmode == 80)
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Сканирование Адреса Задания");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(scanfrm), NULL, (DLGPROC)ScanForm);
-			//}
-			//if (Goodslistmode == 50)
-			//{
-				//tomainmenu = FALSE;
-				//wsprintf(code, L"%u", MessageBox(hwndDlg, L"Хотите подобрать следующую секцию", L"Вопрос", MB_ICONINFORMATION | MB_TOPMOST | MB_YESNO));
-				//sendGoodslist(L"ДефрагментацияОтветНаВопрос", code, code, code, TRUE);
-			//}
-			//if ((Goodslistmode < 30) & (Goodslistmode != 4))
-			//{
-				//tomainmenu = FALSE;
-				//wcscpy(zagolovokokna, L"Дефрагментация Выбор задания");
-				//f = DialogBox(g_hInstance, MAKEINTRESOURCE(viborzadaniya), NULL, (DLGPROC)QuestSelect);
-			//}
-		//}
-
-		//exitFromButton(hwndDlg);
-
-		//return TRUE;
-	//}
-
-	if (wcscmp(code, L"Разгрузка") == 0)
-	{
-		//tomainmenu = FALSE;
-		tomainmenu = FALSE;
-		wcscpy(label1, L"Место");
-		wcscpy(knopkadalee, L"Далее");
-		wcscpy(sklad, L"");
-		enabledialog(hwndDlg, FALSE);
-		WindowCycle(hwndDlg, 500, L"Разгрузка");
-		exitFromButton(hwndDlg);
-		return TRUE;
-	}
-	if (wcscmp(code, L"Погрузка") == 0)
-	{
-		tomainmenu = FALSE;
-		wcscpy(label1, L"Место");
-		wcscpy(knopkadalee, L"Далее");
-		wcscpy(sklad, L"");
-		WindowCycle(hwndDlg, 400, L"Погрузка");
-		exitFromButton(hwndDlg);
-		return TRUE;
-	}
-
-	if ((wcscmp(code, L"Переместить товар (с полки на полку)") == 0) || (wcscmp(code, L"Перемещение") == 0) || (wcscmp(code, L"Движение товара по складу") == 0) || (wcsncmp(code, L"Переместить с адреса", 20) == 0))
+	if ((wcscmp(code, L"Переместить товар (с полки на полку)") == 0) || (wcscmp(code, L"Перемещение") == 0) || (wcscmp(code, L"Движение товара по складу") == 0) || (wcsncmp(code, L"Переместить с", 13) == 0))
 	{
 
 
@@ -2961,12 +3194,14 @@ static LRESULT CALLBACK MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 	if (UseMotorolla && (!NowSending) && (tomainmenu) && WM_TIMER == uMsg)
 	{
 		v = GetKeyboardState(keys);
-		//wsprintf(code,L"---%x;%x;---",v,wParam);
-		//MyMessageWait(code);
+//      wsprintf(code,L"---%x=%u;---",v,v);
+//      MyMessageWait(code);
 		if (v != 0)
 		{
 //green key
-			if (v == 119)
+//showOverlayText(L"\x4a",300,200,65535-500);
+
+			if (v == GreenKey)
 			{
 				return SendMessage(GetFocus(), BM_CLICK, 0, 0);
 			}
@@ -2990,6 +3225,9 @@ static LRESULT CALLBACK MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 				return FALSE;
 		}
 	}
+
+
+
 	switch (uMsg)
 	{
 		case WM_CTLCOLORBTN:
@@ -3044,7 +3282,8 @@ static LRESULT CALLBACK MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 
 		case WM_TIMER:
 			if (wParam == (WM_USER + 333) && (!NowSending) && (tomainmenu))
-			{
+			{	//showOverlayText(L"X",320,200,500);
+
 				wcscpy(temp, zagolovokokna);
 				wcscpy(zagolovokokna, L"ОсновноеОкно");
 				tekWnd = hwndDlg;
@@ -3133,7 +3372,7 @@ _Bool adrtest(HWND hwndDlg, wchar_t *temp)
 	if (xmlgetw(3, L"<m:Наименов") > 1)
 	{
 		wcscpy(temp, wotvet);
-//		MultiByteToWideChar(CODEPAGE, 0, otvet, dwBytesRead, temp, dwBytesRead);
+//      MultiByteToWideChar(CODEPAGE, 0, otvet, dwBytesRead, temp, dwBytesRead);
 
 		if (wcsncmp(temp, L"Выход", 5) == 0)
 		{
@@ -3146,7 +3385,7 @@ _Bool adrtest(HWND hwndDlg, wchar_t *temp)
 		{
 			SetWindowText(GetDlgItem(hwndDlg, 4001), L"");
 			SoundOK(FALSE);
-			ShowError(hwndDlg, temp);
+			ShowError(0, hwndDlg, temp);
 			return FALSE;
 		}
 
@@ -3189,54 +3428,35 @@ static LRESULT CALLBACK command1Proc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 	if (UseMotorolla && (GetTickCount() != lastoperation))
 	{
 
-//(...) screen keys 
-		int key = 117;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-
-				SendMessage(GetDlgItem(hwndDlg, 4001), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
-
-//(...) screen keys 
-		key = 118;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-
-				SendMessage(GetDlgItem(hwndDlg, 4005), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
-
-
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
 //green key
-		key = 119;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
+		if (isPressed(GreenKey))
+			SendMessage(GetDlgItem(hwndDlg, 4001), BM_CLICK, 0, 0);
+//(...) screen keys 
+		if (isPressed(117))
+			SendMessage(GetDlgItem(hwndDlg, 4001), BM_CLICK, 0, 0);
+//(...) screen keys
+		if (isPressed(118))
+			SendMessage(GetDlgItem(hwndDlg, 4005), BM_CLICK, 0, 0);
 
-				SendMessage(GetDlgItem(hwndDlg, 4001), BM_CLICK, 0, 0);
+		//key = 118;
+		//if (GetAsyncKeyState(key) != 0)
+		//{
+		//if (Pressed[key] == 0)
+		//{
+		//lastoperation = GetTickCount();
+		//Pressed[key] = 1;
 
-			}
-		}
-		else
-			Pressed[key] = 0;
+		//SendMessage(GetDlgItem(hwndDlg, 4005), BM_CLICK, 0, 0);
+
+		//}
+		//}
+		//else
+		//Pressed[key] = 0;
+
+
+
 	}
 	//??????????????????????????????????????????????--------------
 	switch (uMsg)
@@ -3339,7 +3559,8 @@ static LRESULT CALLBACK command1Proc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 						return TRUE;
 					}
 					if (xmlvalue(0, "return") > 1)
-					{					wcscpy(temp, wotvet);
+					{
+						wcscpy(temp, wotvet);
 
 						//MultiByteToWideChar(CODEPAGE, 0, otvet, dwBytesRead, temp, dwBytesRead);
 						SetWindowText(GetDlgItem(hwndDlg, 4004), temp);
@@ -3381,7 +3602,8 @@ static LRESULT CALLBACK command1Proc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 					if (UseMotorolla)
 					{
 						getscanline(hwndDlg, temp);
-						if (wcslen(temp) > 3)SetWindowText(GetDlgItem(hwndDlg, 4001), temp);
+						if (wcslen(temp) > 3)
+							SetWindowText(GetDlgItem(hwndDlg, 4001), temp);
 					}
 					GetWindowText(GetDlgItem(hwndDlg, 4001), temp, 200);
 					SetFocus(GetDlgItem(hwndDlg, 4001));
@@ -3490,7 +3712,7 @@ DWORD WINAPI filluuidthread()
 	memset(wzData, 0, BUFSIZE);
 	MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
 	if (xmlgetw(0, L"detail") > 1)
-		ShowError(wnd, wotvet);
+		ShowError(0, wnd, wotvet);
 	i = 0;
 	z = 3;
 	int c = 0;
@@ -3531,88 +3753,19 @@ DWORD WINAPI filluuidthread()
 	return 0;
 }
 //--------------------------------------------
-
-
-//DWORD WINAPI fillcbthread()
-//{
-	//int i, z;
-	//HWND wnd = tekWnd;
-	//wchar_t code[100], tovar[500], kolvo[100];
-
-	//wsprintf(kolvo, L"%u", Goodslistmode);
-	//sendGoodslist(L"ПолучитьОстатки", sklad, otsklad, kolvo, TRUE);
-	//memset(wzData, 0, BUFSIZE);
-	//MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
-	//if (xmlgetw(0, L"detail") > 1)
-		//ShowError(wnd, wotvet);
-	//i = 0;
-	//z = 3;
-	//int c = 0;
-	//while (z > 1)
-	//{
-		//c++;
-		//z = xmlgetw(i, L"<m:Номенклатур");
-		//i = z;
-		//if (z < 1)
-			//continue;
-		//if (xmlgetw(i, L"<m:Код") <= 0)
-			//continue;
-		//wcscpy(code, wotvet);
-		//if (_wtoi(code) == 0 || wcslen(code) < 3)
-			//continue;
-		//xmlgetw(i, L"<m:Наименов");
-		//wcscpy(tovar, wotvet);
-		//wcscat(tovar, L" <code:>");
-		//wcscat(tovar, code);
-		//wcscat(tovar, L"</code>");
-		//SendMessage(GetDlgItem(wnd, combo), CB_ADDSTRING, 0, (LPARAM)tovar);
-	//}
-	//ExitThread(0);
-	//return 0;
-//}
-////--------------------------------------------
-
-//void fillcb(HWND hwndDlg)
-//{
-
-	//if (!cachemode)
-		//return;
-	////int i, z;
-	////wchar_t code[100], tovar[500], kolvo[100];
-	//DWORD dwThreadId;
-	//tab2l = 0;
-	//tab1l = 0;
-	////tekpos = z;
-	//tekWnd = hwndDlg;
-	//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)filluuidthread, NULL, 0, &dwThreadId);
-
-
-//}
+void RefreshText(HWND hwndDlg, int i)
+{
+	wchar_t tovar[200];
+	ListView_GetItemText(GetDlgItem(hwndDlg, list), i, 2, tovar, 200);
+	SetWindowText(GetDlgItem(hwndDlg, 4011), tovar);
+}
 
 _Bool chkGoodsCount(HWND hwndDlg, int i, int z)
 {
 	wchar_t code[100], tovar[500], kolvo[100];
-	//int kk;
-	//if (wcslen(code) < 3)
-	//{
-	//SoundOK(FALSE);
-	//return;
-	//}
-	//if (z <= 0 && Goodslistmode != 441)
-	//{
-	//SendMessage(GetDlgItem(hwndDlg, list), LVM_DELETEITEM, i, 0);
-	//return TRUE;
-	//}
-
 	ListView_GetItemText(GetDlgItem(hwndDlg, list), i, 1, code, 100);
-	//ListView_GetItemText(GetDlgItem(hwndDlg, list),i,0,kolvo,50);
-	//z = _wtoi(kolvo)>>4;
-	//z = 1;
-	//z = (z * 16) + Goodslistmode;
 	wsprintf(kolvo, L"%d", z);
-
 	sendGoodslist(L"НайтиОстатокТовар", code, otsklad, kolvo, FALSE);
-//MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
 	if (xmlgetw(3, L"<m:Наименов") < 1)
 	{
 		SoundOK(FALSE);
@@ -3647,6 +3800,8 @@ _Bool chkGoodsCount(HWND hwndDlg, int i, int z)
 	//else
 	ListView_SetItemText(GetDlgItem(hwndDlg, list), i, 0, kolvo);
 	ListView_SetItemState(GetDlgItem(hwndDlg, list), i, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
+	ListView_SetSelectionMark(GetDlgItem(hwndDlg, list), i);
+	RefreshText(hwndDlg, i);
 
 	editc = 0;
 
@@ -3679,7 +3834,7 @@ _Bool resultList(HWND hwndDlg, _Bool Event)
 
 		if (wcscmp(code, L"ВыйтиСОшибкой") == 0)
 		{
-			ShowError(hwndDlg, tovar);
+			ShowError(0, hwndDlg, tovar);
 			KillTimer(hwndDlg, WM_USER + 2);
 			EndDialog(hwndDlg, _wtoi(kolvo));
 
@@ -3689,7 +3844,7 @@ _Bool resultList(HWND hwndDlg, _Bool Event)
 
 		if (wcscmp(code, L"Ошибка") == 0 || wcscmp(code, L"Error") == 0)
 		{
-			ShowError(hwndDlg, tovar);
+			ShowError(0, hwndDlg, tovar);
 			continue;
 		}
 		if (wcscmp(code, L"Выйти") == 0 || wcscmp(code, L"Успех") == 0)
@@ -3699,7 +3854,45 @@ _Bool resultList(HWND hwndDlg, _Bool Event)
 			return TRUE;
 
 		}
-		if (wcscmp(code, L"ВозвратРезультата") == 0 )	return _wtoi(kolvo);
+
+		c = _wtol(kolvo);
+
+		if (wcscmp(code, L"Крест") == 0)
+		{
+			if (c < 1)
+				c = 500;
+			showOverlayText(tovar, sy, sx, 500, c, FALSE);	//SoundOK(FALSE);//}else{showOverlayText(L"\x4a",sy,sx,65535-500);SoundOK(TRUE);}
+			continue;
+		}
+
+		if (wcscmp(code, L"Галочка") == 0)
+		{
+			if (c < 1)
+				c = 500;
+			showOverlayText(tovar, sy, sx, 65535 - 500, c, TRUE);	//SoundOK(TRUE);//}else{showOverlayText(L"\x4a",sy,sx,65535-500);SoundOK(TRUE);}
+			continue;
+		}
+
+		if (wcscmp(code, L"КрестФорма") == 0)
+		{
+			//if(c<1) c = 500;
+			//showOverlayText(tovar,sy,sx,500,c,FALSE);//SoundOK(FALSE);//}else{showOverlayText(L"\x4a",sy,sx,65535-500);SoundOK(TRUE);}
+			continue;
+		}
+
+		if (wcscmp(code, L"ГалочкаФорма") == 0)
+		{
+			//if(c<1) c = 500;
+			//showOverlayText(tovar,sy,sx,65535-500,c,TRUE);//SoundOK(TRUE);//}else{showOverlayText(L"\x4a",sy,sx,65535-500);SoundOK(TRUE);}
+			continue;
+		}
+
+
+
+
+
+		if (wcscmp(code, L"ВозвратРезультата") == 0)
+			return _wtoi(kolvo);
 		if (wcscmp(code, L"Артикул") == 0)
 		{
 
@@ -3772,200 +3965,16 @@ _Bool resultList(HWND hwndDlg, _Bool Event)
 
 	ListView_SetItemState(GetDlgItem(hwndDlg, list), x, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
 	ListView_EnsureVisible(GetDlgItem(hwndDlg, list), x, TRUE);
+	ListView_RedrawItems(GetDlgItem(hwndDlg, list), 0, x);
+	ListView_SetSelectionMark(GetDlgItem(hwndDlg, list), x);
 
-	SetFocus(GetDlgItem(hwndDlg, combo));
-	SendMessage(GetDlgItem(hwndDlg, combo), CB_SETCURSEL, -1, 0);
+	RefreshText(hwndDlg, x);
+	if (!UseMotorolla)SetFocus(GetDlgItem(hwndDlg, combo));
+	if (!UseMotorolla)SendMessage(GetDlgItem(hwndDlg, combo), CB_SETCURSEL, -1, 0);
 	editc = 0;
 	return TRUE;
 
 }
-
-//DWORD WINAPI sendListThread()
-//{
-	//int z = 0, t = 0, c = 0;
-	//NowSending = TRUE;
-	//int tmpbuf;
-	//wchar_t *temp, tmpstr[10], scrstr[10];
-	//temp = (wchar_t *)LocalAlloc(0, BUFSIZE * sizeof(wchar_t));	// 1251 юникод
-	//if (nowtab1)
-	//{
-		//t = tab2l;
-		//tmpbuf = 2;
-		//tab2l = 0;
-	//}
-	//else
-	//{
-		//t = tab1l;
-		//tmpbuf = 1;
-		//tab1l = 0;
-	//}
-	//wcscpy(temp, L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:ОбменТСД xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-	//wcscat(temp, L"НайтиСписокТоваров");
-	//wcscat(temp, L"</m:ВидОперации><m:Список xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"	xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-	//_Bool isok = FALSE;
-	//for (; c <= t; c++)
-	//{
-		//z = tmp[tmpbuf][c].kolvo;
-		//if (z == 0)
-			//continue;
-		//wsprintf(scrstr, L"%d", tmp[tmpbuf][c].Param);
-		//wsprintf(tmpstr, L"%d", z);
-		//wcscat(temp, L"<m:Номенклатура><m:Код>");
-		//wcscat(temp, tmp[tmpbuf][c].guid);
-		//wcscat(temp, L"</m:Код><m:Наименование>");
-		//wcscat(temp, scrstr);
-		//wcscat(temp, L"</m:Наименование><m:Количество>");
-		//wcscat(temp, tmpstr);
-		////wcscpy(tmpstr, tmp[tmpbuf][c].guid);
-		//wcscat(temp, L"</m:Количество></m:Номенклатура>");
-		//isok = TRUE;
-	//}
-	//wchar_t gettxt[255], modify[255];
-	//memset((char *)tmp[tmpbuf], 0, sizeof(struct guids) * ScanBuf);
-	//if (!isok)
-	//{
-		//NowSending = FALSE;
-		//LocalFree((char *)temp);
-		//return TRUE;
-	//}
-	//wcscat(temp, L"</m:Список></m:ОбменТСД></soap:Body></soap:Envelope>");
-	//sendws(temp);
-	//LocalFree((char *)temp);
-	//MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
-	//NowSending = FALSE;
-
-	//if (!resultList(tekWnd, FALSE))
-		//return 0;	//ShowError(tekWnd,wotvet);
-	//if (!NowSending)
-		//return waitforServerList(tekWnd, FALSE);
-	//return 1;
-	////ExitThread(0);
-//}
-
-
-//static _Bool waitforServerList(HWND hwndDlg, _Bool Thread)
-//{
-	//int t = 0, c = 0;
-	//DWORD dwThreadId;
-	//int tmpbuf;
-	//while (NowSending)
-	//{
-		//Sleep(1);
-		//c++;
-	//}
-	//if (nowtab1)
-	//{
-		//t = tab1l;
-		//tmpbuf = 1;
-	//}
-	//else
-	//{
-		//t = tab2l;
-		//tmpbuf = 2;
-	//}
-	//nowtab1 = !nowtab1;
-	////memset((char *)erbuf,0,sizeof(struct guids)*ScanBuf);
-	//if (t == 0)
-		//return TRUE;
-	//NowSending = TRUE;
-	//tekWnd = hwndDlg;
-	//if (Thread)
-		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)sendListThread, NULL, 0, &dwThreadId);
-	//else
-		//return sendListThread();
-	//return TRUE;
-//}
-
-//void AddListBarcode(wchar_t *scan, int kol)
-//{
-	//int t = 0, c = 0;
-	//int tmpbuf;
-	//wchar_t ttt[255];
-	//if (nowtab1)
-	//{
-		//tab1l++;
-		//t = tab1l;
-		//tmpbuf = 1;
-	//}
-	//else
-	//{
-		//tab2l++;
-		//t = tab2l;
-		//tmpbuf = 2;
-	//}
-	//for (c = 0; c < t; c++)
-		//if ((wcscmp(tmp[tmpbuf][c].guid, scan) == 0))
-		//{
-			//if (nowtab1)
-				//tab1l--;
-			//else
-				//tab2l--;
-			//break;
-		//}	//||(uuid[c].kolvo==0)
-	//wcscpy(tmp[tmpbuf][c].guid, scan);
-	////wcscpy(tmp[0][0].guid,scan);
-	//tmp[tmpbuf][c].kolvo++;
-	//tmp[tmpbuf][c].Param = kol;
-	////wcscpy(ttt,tmp[tmpbuf][c].guid);
-	////wsprintf(scan,L"%x %u %u",t,tmp1[c].kolvo,tmp2[c].kolvo);
-	//SoundOK(TRUE);
-//}
-
-//_Bool chkOffline(HWND hwndDlg, wchar_t *scn)
-//{
-
-	//int d, i, c = 0;
-
-	//wchar_t scan[100], gettxt[255], modify[255];
-	//wcscpy(scan, scn);
-	//LV_ITEM lvi;
-	//wchar_t kolvo[100], code[100];
-	//for (c = 0; c <= GUIDSCOUNT; c++)
-	//{
-		//if ((wcscmp(uuid[c].Adress, scan) == 0) || (wcsncmp(uuid[c].Adress, scan, 7) == 0) || (wcscmp(uuid[c].Article, scan) == 0))
-			//break;
-	//}	//ищем нужный ЕАН in таблиц
-	//SetFocus(GetDlgItem(hwndDlg, combo));
-	//SendMessage(GetDlgItem(hwndDlg, combo), CB_SETCURSEL, -1, 0);
-	//editc = 0;
-	////---------------------------------
-	//if (c > GUIDSCOUNT)	//not found блеать
-	//{
-		//AddListBarcode(scan, 0);
-		//return (_Bool)waitforServerList(hwndDlg, FALSE);	//)ShowError(tekWnd,wotvet);
-	//}	//Нашли и изменяем его состояние на экране------------------------------------------
-	//if (wcscmp(uuid[c].Adress, L"+++") == 0)
-	//{
-		//AddListBarcode(scan, -2);
-		//return (_Bool)waitforServerList(hwndDlg, FALSE);	//)ShowError(tekWnd,wotvet);
-	//}
-	//i = findcode(hwndDlg, uuid[c].Adress, &d);
-	//if (i < 0)
-	//{
-		//addline(hwndDlg, L"1", uuid[c].Adress, uuid[c].guid, c);
-		//AddListBarcode(scan, -1);
-	//}
-	//else
-	//{
-		////d++;
-		//AddListBarcode(scan, d++);
-		//wsprintf(kolvo, L"%d", d);
-		//ListView_SetItemText(GetDlgItem(hwndDlg, list), i, 0, kolvo);
-		//ListView_SetItemState(GetDlgItem(hwndDlg, list), i, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
-		//ListView_EnsureVisible(GetDlgItem(hwndDlg, list), i, TRUE);
-		//if (uuid[c].kolvo > 0 && d > uuid[c].kolvo)
-			//return (_Bool)waitforServerList(hwndDlg, FALSE);
-
-	//}
-	//SetFocus(GetDlgItem(hwndDlg, combo));
-	//SendMessage(GetDlgItem(hwndDlg, combo), CB_SETCURSEL, -1, 0);
-	//editc = 0;
-	//_Bool rt = TRUE;
-	//if (!NowSending)
-		//rt = waitforServerList(tekWnd, TRUE);
-	//return rt;
-//}
-
 
 
 _Bool chkGoods(HWND hwndDlg, wchar_t *code)
@@ -3978,21 +3987,15 @@ _Bool chkGoods(HWND hwndDlg, wchar_t *code)
 		//SoundOK(FALSE);
 		return FALSE;
 	}
-
-	//if (cachemode)return chkOffline(hwndDlg, code); // отключил режим кеширования данных 
-
 	VoprosReady = FALSE;
 	z = 1;
-	//z = (z * 16) + Goodslistmode;
 	wsprintf(kolvo, L"%d", z);
-
-	//wsprintf(kolvo, L"%u", Goodslistmode);
 	sendGoodslist(L"НайтиТовар", code, otsklad, kolvo, FALSE);
 
 	if (xmlgetw(3, L"<m:Код") < 1)
 	{
 		xmlgetw(3, L"detail");
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		return FALSE;
 
 	}
@@ -4010,7 +4013,7 @@ _Bool chkGoods(HWND hwndDlg, wchar_t *code)
 	if (xmlgetw(3, L"<m:Наименов") < 1)
 	{
 		xmlgetw(3, L"detail");
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		return FALSE;
 
 	}
@@ -4018,14 +4021,14 @@ _Bool chkGoods(HWND hwndDlg, wchar_t *code)
 	if (xmlgetw(3, L"<m:Количеств") < 1)
 	{
 		xmlgetw(3, L"detail");
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		return FALSE;
 
 	}
 	wcscpy(kolvo, wotvet);
 	if ((wcslen(code) < 2) || (wcscmp(code, L"Error") == 0) || (wcscmp(code, L"Ошибка") == 0))
 	{
-		ShowError(hwndDlg, tovar);
+		ShowError(0, hwndDlg, tovar);
 		return FALSE;
 
 	}
@@ -4041,23 +4044,7 @@ _Bool chkGoods(HWND hwndDlg, wchar_t *code)
 		return TRUE;
 
 	}
-
-
-	//MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
-	//i = xmlgetw(0, L"return");
-	//if (xmlgetw(i, L"<m:Код") > 0)
-	//{
-	//wcscpy(code, wotvet);
-	//xmlgetw(i, L"<m:Наименов");
-	//wcscpy(tovar, wotvet);
-	//xmlgetw(i, L"<m:Количеств");
-	//wcscpy(kolvo, wotvet);
 	int p = _wtoi(kolvo);
-	//if ((wcslen(code) < 2) || (wcscmp(code, L"Error") == 0))
-	//{
-	//ShowError(hwndDlg, tovar);
-	//return;
-	//} // товар ненайден в базе можно выдавать сообщение тут
 	mSetFocus(GetDlgItem(hwndDlg, list));
 	i = findcode(hwndDlg, code, &kk);
 	if (i >= 0)
@@ -4067,36 +4054,33 @@ _Bool chkGoods(HWND hwndDlg, wchar_t *code)
 		{
 			if (!chkGoodsCount(hwndDlg, i, kk))
 			{
-				ShowError(hwndDlg, wotvet);
+				ShowError(0, hwndDlg, wotvet);
 				return FALSE;
 
 			}
 		}
 		SoundOK(TRUE);
 		wsprintf(kolvo, L"%u", kk);
-		//ListView_EnsureVisible(GetDlgItem(hwndDlg, list),i,TRUE );  
 		ListView_SetItemText(GetDlgItem(hwndDlg, list), i, 0, kolvo);
 		ListView_SetItemState(GetDlgItem(hwndDlg, list), i, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
-		//  RECT rc;ListView_GetItemRect(GetDlgItem(hwndDlg, list),i,&rc,LVIR_BOUNDS);
 		ListView_EnsureVisible(GetDlgItem(hwndDlg, list), i, TRUE);
-//      ListView_EnsureVisible(GetDlgItem(hwndDlg, list),ListView_GetSelectionMark(GetDlgItem(hwndDlg, list),FALSE); 
-		//ListView_Scroll(GetDlgItem(hwndDlg, list),0,1000);
+		ListView_RedrawItems(GetDlgItem(hwndDlg, list), 0, i);
+		ListView_SetSelectionMark(GetDlgItem(hwndDlg, list), i);
+
+		RefreshText(hwndDlg, i);
 		SetFocus(GetDlgItem(hwndDlg, combo));
 		SendMessage(GetDlgItem(hwndDlg, combo), CB_SETCURSEL, -1, 0);
 		editc = 0;
 		return TRUE;
 
 	}
-	//  MultiByteToWideChar(CODEPAGE, 0, otvet, dwBytesRead, temp, dwBytesRead);
-
 	SoundOK(TRUE);
 	i = addline(hwndDlg, VoprosReady ? kolvo : L"1", code, tovar, 33);
 	SendMessage(GetDlgItem(hwndDlg, list), LVM_SETSELECTIONMARK, 0, i);
-	//ListView_SetSelectionMark(GetDlgItem(hwndDlg, list),1);
 	ListView_SetItemState(GetDlgItem(hwndDlg, list), i, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
 	ListView_Scroll(GetDlgItem(hwndDlg, list), 0, 1000);
 	ListView_EnsureVisible(GetDlgItem(hwndDlg, list), i, TRUE);
-
+	RefreshText(hwndDlg, i);
 	mSetFocus(GetDlgItem(hwndDlg, combo));
 	SendMessage(GetDlgItem(hwndDlg, combo), CB_SETCURSEL, -1, 0);
 	editc = 0;
@@ -4141,7 +4125,7 @@ _Bool scaningList(HWND hwndDlg, _Bool KeyDown)
 			z = _wtoi(kolvo);
 			z++;
 			if (!chkGoodsCount(hwndDlg, i, z))
-				ShowError(hwndDlg, wotvet);
+				ShowError(0, hwndDlg, wotvet);
 			RecalcALL(GetDlgItem(hwndDlg, list), GetDlgItem(hwndDlg, 4014));
 			SoundOK(TRUE);
 
@@ -4174,65 +4158,64 @@ _Bool scaningList(HWND hwndDlg, _Bool KeyDown)
 
 }
 
-_Bool SendListwithCommand(HWND hwndDlg, wchar_t *command, wchar_t *operation,_Bool FlagsOnly)
-{
-	wchar_t code[100], kolvo[100],tovar[200];
-	int i, z;
-	RECT rect;
-	LV_COLUMN lvc;
-	LV_ITEM lvi;
-	LVFINDINFO lvf;
-	LPNMHDR jj;
-	HWND hwndList = GetDlgItem(hwndDlg, list);
-	int c, x, y, kk, k;
-//  LPMSG pMsg;
-	wcscpy(tovar,command);
-	wcscpy(wzData, L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:ОбменТСД xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-	wcscat(wzData, operation);
-	wcscat(wzData, L"</m:ВидОперации><m:Список xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"	xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
-	i = SendMessage(GetDlgItem(hwndDlg, list), LVM_GETITEMCOUNT, 0, 0);
-	z =0;
-	for (; i > 0;)
-	{
+//_Bool SendListwithCommand(HWND hwndDlg, wchar_t *command, wchar_t *operation,_Bool FlagsOnly)
+//{
+	//wchar_t code[100], kolvo[100],tovar[200];
+	//int i, z;
+	//RECT rect;
+	//LV_COLUMN lvc;
+	//LV_ITEM lvi;
+	//LVFINDINFO lvf;
+	//LPNMHDR jj;
+	//HWND hwndList = GetDlgItem(hwndDlg, list);
+	//int c, x, y, kk, k;
+////  LPMSG pMsg;
+	//wcscpy(tovar,command);
+	//wcscpy(wzData, L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:ОбменТСД xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
+	//wcscat(wzData, operation);
+	//wcscat(wzData, L"</m:ВидОперации><m:Список xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
+	//i = SendMessage(GetDlgItem(hwndDlg, list), LVM_GETITEMCOUNT, 0, 0);
+	//z =0;
+	//for (; i > 0;)
+	//{
 
-		i--;
-		lvi.pszText = kolvo;
-		lvi.cchTextMax = sizeof(kolvo);
-		lvi.iSubItem = 0;	//0 обязательно
-		SendMessage(hwndList, LVM_GETITEMTEXT, i, (LPARAM) & lvi);
-		lvi.pszText = code;
-		lvi.cchTextMax = sizeof(code);
-		lvi.iSubItem = 1;
-		SendMessage(hwndList, LVM_GETITEMTEXT, i, (LPARAM) & lvi);
-		if(FlagsOnly){
-			if(!ListView_GetCheckState(hwndList, i)) continue;
-		lvi.pszText = tovar;
-		lvi.cchTextMax = sizeof(tovar);
-		lvi.iSubItem = 2;
-		SendMessage(hwndList, LVM_GETITEMTEXT, i, (LPARAM) & lvi);
+		//i--;
+		//lvi.pszText = kolvo;
+		//lvi.cchTextMax = sizeof(kolvo);
+		//lvi.iSubItem = 0; //0 обязательно
+		//SendMessage(hwndList, LVM_GETITEMTEXT, i, (LPARAM) & lvi);
+		//lvi.pszText = code;
+		//lvi.cchTextMax = sizeof(code);
+		//lvi.iSubItem = 1;
+		//SendMessage(hwndList, LVM_GETITEMTEXT, i, (LPARAM) & lvi);
+		//if(FlagsOnly){
+			//if(!ListView_GetCheckState(hwndList, i)) continue;
+		//lvi.pszText = tovar;
+		//lvi.cchTextMax = sizeof(tovar);
+		//lvi.iSubItem = 2;
+		//SendMessage(hwndList, LVM_GETITEMTEXT, i, (LPARAM) & lvi);
 
-			z++;
-		}
+			//z++;
+		//}
 
 
 
-		wcscat(wzData, L"<m:Номенклатура><m:Код>");
-		wcscat(wzData, code);
-		wcscat(wzData, L"</m:Код><m:Наименование>");
-		wcscat(wzData, command);
-		wcscat(wzData, L"</m:Наименование><m:Количество>");
-		c = _wtoi(kolvo);
-		wsprintf(kolvo, L"%u", c);
-		wcscat(wzData, kolvo);
-		wcscat(wzData, L"</m:Количество></m:Номенклатура>");
-	}
-	if(FlagsOnly && z==0) return FALSE;
-	wcscat(wzData, L"</m:Список></m:ОбменТСД></soap:Body></soap:Envelope>");
-	sendws(wzData);
-	MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
-	return resultList(hwndDlg, TRUE);
-}
-
+		//wcscat(wzData, L"<m:Номенклатура><m:Код>");
+		//wcscat(wzData, code);
+		//wcscat(wzData, L"</m:Код><m:Наименование>");
+		//wcscat(wzData, tovar);
+		//wcscat(wzData, L"</m:Наименование><m:Количество>");
+		//c = _wtoi(kolvo);
+		//wsprintf(kolvo, L"%u", c);
+		//wcscat(wzData, kolvo);
+		//wcscat(wzData, L"</m:Количество></m:Номенклатура>");
+	//}
+	//if(FlagsOnly && z==0) return FALSE;
+	//wcscat(wzData, L"</m:Список></m:ОбменТСД></soap:Body></soap:Envelope>");
+	//sendws(wzData);
+	//MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
+	//return resultList(hwndDlg, TRUE);
+//}
 
 
 
@@ -4262,124 +4245,81 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 
 		hwndList = GetDlgItem(hwndDlg, list);
 		i = ListView_GetSelectionMark(hwndList);
-
-
 //(...) screen keys 
-		int key = 117;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-
-				SendMessage(GetDlgItem(hwndDlg, 4007), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
-
+		if (isPressed(117))
+			SendMessage(GetDlgItem(hwndDlg, 4007), BM_CLICK, 0, 0);
 //(...) screen keys 
-		key = 118;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-
-				SendMessage(GetDlgItem(hwndDlg, 4008), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
-
-
+		if (isPressed(118))
+			SendMessage(GetDlgItem(hwndDlg, 4008), BM_CLICK, 0, 0);
 //green key
-		key = 119;
-
-
-
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
+		if (isPressed(GreenKey))
+			if (editc == 0)
 			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-				if (editc == 0)
-				{
-					KillTimer(hwndDlg, WM_USER + 2);
-					//mSetFocus(hwndList);
-					editc = 1;
-					LPMSG p1Msg;
-					//KillTimer(hwndDlg, WM_USER + 2);
-					//freeMessages(p1Msg, hwndDlg);
-					SendMessage(hwndList, LVM_EDITLABEL, i, 0);
-					//return TRUE;
-					SetTimer(hwndDlg, WM_USER + 4, 10, NULL);
-				}
-				else
-				{
-
-					KillTimer(hwndDlg, WM_USER + 4);
-					//mSetFocus(GetDlgItem(hwndDlg, combo));
-					mSetFocus(GetDlgItem(hwndDlg, list));
-				}
+				KillTimer(hwndDlg, WM_USER + 2);
+				//mSetFocus(hwndList);
+				editc = 1;
+				LPMSG p1Msg;
+				//KillTimer(hwndDlg, WM_USER + 2);
+				//freeMessages(p1Msg, hwndDlg);
+				SendMessage(hwndList, LVM_EDITLABEL, i, 0);
+				//return TRUE;
+				SetTimer(hwndDlg, WM_USER + 4, 10, NULL);
 			}
-		}
-		else
-			Pressed[key] = 0;
+			else
+			{
+
+				KillTimer(hwndDlg, WM_USER + 4);
+				//mSetFocus(GetDlgItem(hwndDlg, combo));
+				mSetFocus(GetDlgItem(hwndDlg, list));
+			}
+
 		// right - left
-		key = 39;
-
-		//if(keys[39]& 128){
-		if (GetAsyncKeyState(key) != 0 && (i >= 0))
+		if (isPressed(39))
 		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-				ListView_GetItemText(hwndList, i, 0, kolvo, 50);
-				z = _wtoi(kolvo);
-				z++;
+			ListView_GetItemText(hwndList, i, 0, kolvo, 50);
+			z = _wtoi(kolvo);
+			z++;
 
-				if (!chkGoodsCount(hwndDlg, i, z))
-					ShowError(hwndDlg, wotvet);
-				RecalcALL(hwndList, GetDlgItem(hwndDlg, 4014));
-				editc = 0;
+			if (!chkGoodsCount(hwndDlg, i, z))
+				ShowError(0, hwndDlg, wotvet);
+			RecalcALL(hwndList, GetDlgItem(hwndDlg, 4014));
+			editc = 0;
 
-			}
 		}
-		else
-			Pressed[key] = 0;
-		key = 37;
 
-		if (GetAsyncKeyState(key) != 0 && (i >= 0))
+		if (isPressed(37))
 		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-				ListView_GetItemText(hwndList, i, 0, kolvo, 50);
-				z = _wtoi(kolvo);
-				z--;
+			ListView_GetItemText(hwndList, i, 0, kolvo, 50);
+			z = _wtoi(kolvo);
+			z--;
 
-				if (!chkGoodsCount(hwndDlg, i, z))
-					ShowError(hwndDlg, wotvet);
-				RecalcALL(hwndList, GetDlgItem(hwndDlg, 4014));
-				editc = 0;
-			}
+			if (!chkGoodsCount(hwndDlg, i, z))
+				ShowError(0, hwndDlg, wotvet);
+			RecalcALL(hwndList, GetDlgItem(hwndDlg, 4014));
+			editc = 0;
 		}
-		else
-			Pressed[key] = 0;
+
+		//if(isPressed(0x32)){
+		//code[0] = tab1l;
+		//code[1] = 0;
+		//tab1l++;
+		//showOverlayText(code,300,200,65535-500);
+		//wsprintf(code,L"---%x=%u;---",tab1l,tab1l);
+		//MyMessageWait(code);
+
+
+		//}
+
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
 	}
 	//-----------------------------------------------------------------------
 	switch (uMsg)
 	{
 		case WM_INITDIALOG:
 		{
+
+			
 			GUIDSCOUNT = 0;
 			SetWindowLong(hwndDlg, DWL_MSGRESULT, DLGC_WANTALLKEYS | DLGC_WANTCHARS);
 			//memset((char*)uuid,0, GUIDSIZE * sizeof(struct guids));
@@ -4460,7 +4400,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 			SendMessage(GetDlgItem(hwndDlg, list), LVM_INSERTCOLUMN, 0, (LPARAM) & lvc);
 			//SendMessage(GetDlgItem(hwndDlg, combo), CB_RESETCONTENT, 0, 0);
 			//ShowWindow(GetDlgItem(hwndDlg, combo), SW_SHOW);
-			SetFocus(GetDlgItem(hwndDlg, combo));
+			if (!UseMotorolla)SetFocus(GetDlgItem(hwndDlg, combo));
 			ShowWindow(GetDlgItem(hwndDlg, combo), SW_HIDE);
 			//SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
 			//SetFocus(GetDlgItem(hwndDlg, combo));
@@ -4479,21 +4419,11 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 			return TRUE;
 		}
 
-
-
-		//case 0x100:
-		//if(!UseMotorolla)break;
-		//if(!(wParam == 0xd||wParam == 0x78||wParam == 0x79||wParam == 0x77))break;
-		//wParam = 0xbc01;
 		case 0x80b4:
 
 			//SetTimer(hwndDlg, WM_USER + 2, 500, NULL);
 			editc = 0;
 			return scaningList(hwndDlg, (wParam == 0xbc01));
-
-
-
-
 			return TRUE;
 
 		case WM_CONTEXTMENU:
@@ -4584,7 +4514,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							z--;
 
 							if (!chkGoodsCount(hwndDlg, i, z))
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 						}
 						RecalcALL(GetDlgItem(hwndDlg, list), GetDlgItem(hwndDlg, 4014));
 						editc = 0;
@@ -4598,7 +4528,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							z = _wtoi(kolvo);
 							z++;
 							if (!chkGoodsCount(hwndDlg, i, z))
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 
 						}
 
@@ -4659,7 +4589,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 					//  if (k == 0) SendMessage(GetDlgItem(hwndDlg, ServerName), BM_CLICK, 0, 0);
 					//if (k > 0||Goodslistmode == 441||Goodslistmode == 1)
 					if (!chkGoodsCount(hwndDlg, ttt->item.iItem, k))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 					//ListView_SetItemText(GetDlgItem(hwndDlg, list), ttt->item.iItem, 0, ttt->item.pszText);   // помещаем редактируемый текст в ячейку редактируемой таблицы
 					editc = 0;
 					RecalcALL(GetDlgItem(hwndDlg, list), GetDlgItem(hwndDlg, 4014));
@@ -4698,49 +4628,21 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 					//MyMessageWait(tovar);
 					i = SendMessage(GetDlgItem(hwndDlg, list), LVM_GETSELECTIONMARK, 0, 0);
 					if (i >= 0)
-					{
-						ListView_GetItemText(GetDlgItem(hwndDlg, list), i, 2, tovar, 200);
-						SetWindowText(GetDlgItem(hwndDlg, 4011), tovar);
-					}
+						RefreshText(hwndDlg, i);
+
 				}
 
 
 			}
 			else
 			{
-				mSetFocus(GetDlgItem(hwndDlg, combo));
+				if (!UseMotorolla)mSetFocus(GetDlgItem(hwndDlg, combo));
 				SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
 			}
 			return TRUE;
 
 		case WM_TIMER:
-			//if (wParam == WM_USER + 4){
 
-			//int key = 119;
-			//// wsprintf(code,L"---%x---",GetAsyncKeyState(key));
-			////MyMessageWait(code);
-
-			//if (GetAsyncKeyState(key) != 0 && Pressed[key] == 0)
-			//{lastoperation = GetTickCount(); 
-			//Pressed[key] = 1;
-			//KillTimer(hwndDlg, WM_USER + 4);
-			////editc = 0;
-			//hwndList = GetDlgItem(hwndDlg, list);
-			////i = ListView_GetSelectionMark(hwndList);
-			////LPMSG p1Msg;
-			////KillTimer(hwndDlg, WM_USER + 2);
-			////freeMessages(p1Msg, hwndDlg);
-			//SendMessage(hwndList, LVM_EDITLABEL, i, 0);
-			////return TRUE;
-			////        }else {
-			//SendMessage(hwndList,WM_KEYDOWN, VK_RETURN, 0);   
-			////SendMessage(hwndList, LVN_ENDLABELEDIT, i, 0);
-			////SetTimer(hwndDlg, WM_USER + 4, 50, NULL);
-			//}
-			//else
-			//Pressed[key] = 0;
-
-			//}
 			SetWindowLong(hwndDlg, DWL_MSGRESULT, DLGC_WANTALLKEYS | DLGC_WANTCHARS);
 			if (wParam == WM_USER + 2)
 				if (editc == 0)
@@ -4827,7 +4729,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 						KillTimer(hwndDlg, WM_USER + 2);
 						if (DialogBox(g_hInstance, MAKEINTRESOURCE(nasklad), NULL, (DLGPROC)command1Proc) == 130)
 						{
-							freeMessages(pMsg,hwndDlg);
+							freeMessages(pMsg, hwndDlg);
 							wcscpy(wzData, L"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Header/><soap:Body><m:ОбменТСД xmlns:m=\"http://www.dns-shop.tsd.ru\"><m:ВидОперации xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">Переместить</m:ВидОперации><m:Список xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"	xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
 							wcscat(wzData, L"<m:Номенклатура><m:Код>");
 							wcscat(wzData, sklad);
@@ -4869,7 +4771,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							if (i < 2)
 							{
 								xmlgetw(0, L"detail");
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 								MyMessageBox(hwndDlg, wzData, L"Error", 2);
 								return TRUE;
 							}
@@ -4884,7 +4786,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 								wcscpy(tovar, wotvet);
 								if ((wcscmp(code, L"Error") == 0))
 								{
-									ShowError(hwndDlg, tovar);
+									ShowError(0, hwndDlg, tovar);
 									return TRUE;
 								}
 								else if (wcscmp(code, L"Выход") == 0 || GET_WM_COMMAND_ID(wParam, lParam) == password)
@@ -4896,6 +4798,10 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 								SendMessage(GetDlgItem(hwndDlg, list), LVM_DELETEALLITEMS, 0, 0);
 								tekWnd = hwndDlg;
 								wcscpy(zagolovokokna, L"Остаток ДЯ");
+								SetForegroundWindow(hwndDlg);
+						
+								
+								mSetFocus(GetDlgItem(hwndDlg, list));
 								getform1c();
 
 							}
@@ -4905,7 +4811,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 								if (xmlgetw(0, L"detail") < 1)
 								{
 									xmlgetw(0, L"faultstring");
-									ShowError(hwndDlg, wotvet);
+									ShowError(0, hwndDlg, wotvet);
 									MyMessageBox(hwndDlg, wotvet, kolvo, 2);
 								}
 							}
@@ -4961,14 +4867,14 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							wcscpy(tovar, wotvet);
 							if ((wcscmp(code, L"Error") == 0))
 							{
-								ShowError(hwndDlg, tovar);
+								ShowError(0, hwndDlg, tovar);
 								return TRUE;
 							}
 							else
 								//if (wcscmp(code, L"Успех") == 0)
 							{
 								KillTimer(hwndDlg, WM_USER + 2);
-								//ShowError(hwndDlg, tovar);
+								//ShowError(0,hwndDlg, tovar);
 								//Sleep(1000);
 								//MessageBox(0,tovar,L"Создан Документ",MB_ICONINFORMATION|MB_TOPMOST); 
 								EndDialog(hwndDlg, LOWORD(wParam) == 4010 ? 0 : 130);
@@ -4979,7 +4885,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 						{
 							if (xmlgetw(0, L"detail") < 1)
 								xmlgetw(0, L"faultstring");
-							ShowError(hwndDlg, wotvet);
+							ShowError(0, hwndDlg, wotvet);
 							MyMessageBox(hwndDlg, wotvet, L"Error", 2);
 						}
 					}
@@ -5042,7 +4948,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 						if (i < 2)
 						{
 							xmlgetw(0, L"detail");
-							ShowError(hwndDlg, wotvet);
+							ShowError(0, hwndDlg, wotvet);
 							MyMessageBox(hwndDlg, wzData, L"Error", 2);
 							return TRUE;
 						}
@@ -5054,17 +4960,18 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							wcscpy(tovar, wotvet);
 							if ((wcscmp(code, L"Error") == 0))
 							{
-								ShowError(hwndDlg, tovar);
+								ShowError(0, hwndDlg, tovar);
 								return TRUE;
 							}
 							if (wcscmp(code, L"Успех") == 0)
 							{
 								KillTimer(hwndDlg, WM_USER + 2);
-								//ShowError(hwndDlg, tovar);
+								//ShowError(0,hwndDlg, tovar);
 								Sleep(1000);
 								//MessageBox(0,tovar,L"Создан Документ",MB_ICONINFORMATION|MB_TOPMOST);
 								EndDialog(hwndDlg, 130);
 							}
+							SetForegroundWindow(hwndDlg);
 
 							if (wcscmp(code, L"СледующийУспех") == 0)
 							{
@@ -5074,9 +4981,10 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 								EnableWindow(GetDlgItem(hwndDlg, password), TRUE);
 
 								tekWnd = hwndDlg;
+														mSetFocus(GetDlgItem(hwndDlg, list));
 								//wcscpy(zagolovokokna, L"СписокСледуюший_Размещение");
 								//wcscat(zagolovokokna, tovar);
-								getformparse();
+								getformparse(i);
 								return TRUE;
 
 							}
@@ -5148,6 +5056,9 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 						sendws(wzData);
 						MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
 						SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
+						SetForegroundWindow(hwndDlg);
+						mSetFocus(GetDlgItem(hwndDlg, list));
+
 						return resultList(hwndDlg, TRUE);
 					}
 					return TRUE;
@@ -5209,7 +5120,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 					{
 						i = SendMessage(GetDlgItem(hwndDlg, list), LVM_GETSELECTIONMARK, 0, 0);
 						SendMessage(GetDlgItem(hwndDlg, list), LVM_DELETEITEM, i, 0);
-						mSetFocus(GetDlgItem(hwndDlg, combo));
+						if (!UseMotorolla)mSetFocus(GetDlgItem(hwndDlg, combo));
 						SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
 					}
 					return TRUE;
@@ -5233,7 +5144,7 @@ static LRESULT CALLBACK GoodsListProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 
 		case WM_CLOSE:
 			KillTimer(hwndDlg, WM_USER + 2);
-			EndDialog(hwndDlg, 0);
+			EndDialog(hwndDlg, 0);if (UseMotorolla)
 			return TRUE;
 	}
 
@@ -5320,9 +5231,9 @@ HTREEITEM findtreeitem(HWND hwndDlg, wchar_t *text, wchar_t *guid, wchar_t *modi
 	}
 
 	if (operation == 4)
-		{
-		TreeView_SelectItem(GetDlgItem(hwndDlg, treelist),htil);
-		}
+	{
+		TreeView_SelectItem(GetDlgItem(hwndDlg, treelist), htil);
+	}
 	return htil;
 }
 
@@ -5336,54 +5247,12 @@ HTREEITEM addtreeitem(HWND hwndDlg, wchar_t *text, long int lparam, _Bool ThisIs
 	tvi.cchTextMax = wcslen(text);
 	tvi.cChildren = ThisIsTheEnd ? 0 : 1;
 	tvi.lParam = (LPARAM)lparam;
-	//tvi.hItem = htil;
 	tvii.hParent = htil;
 	tvii.item = tvi;
 	tvii.hInsertAfter = TVI_LAST;
 	return TreeView_InsertItem(GetDlgItem(hwndDlg, treelist), &tvii);
 }
 
-
-//DWORD WINAPI filTreethread()
-//{
-	//int i, z;
-	//HWND wnd = tekWnd;
-	//wchar_t code[100], tovar[500], kolvo[100];
-	//sendGoodslist(L"СписокФилиалов", serverWS, serviceWS, L"5000", TRUE);
-	//memset(wzData, 0, BUFSIZE * 2);
-	//MultiByteToWideChar(CODEPAGE, 0, szData, strlen(szData), wzData, BUFSIZE);
-	//if (xmlgetw(0, L"detail") > 1)
-		//MyMessageBox(wnd, wotvet, L"Error", 3);
-	//else
-	//{
-		//i = 0;
-		//z = 3;
-		//int d, c = 0;
-		//while (z > 1)
-		//{
-			//c++;
-			//z = xmlgetw(i, L"<m:Номенклатур");
-			//i = z;
-			//if (z < 1)
-				//continue;
-			//if (xmlgetw(i, L"<m:Код") <= 0)
-				//continue;
-			//wcscpy(uuid[c].guid, wotvet);
-			//if (xmlgetw(i, L"<m:Количеств") <= 0)
-				//continue;
-			//d = _wtoi(wotvet);
-			//if (xmlgetw(i, L"<m:Наименов") <= 0)
-				//continue;
-			//hti[0] = NULL;
-			//hti[d + 1] = addtreeitem(wnd, wotvet, c, d == 2, hti[d]);
-		//}
-
-		//GUIDSCOUNT = c + 1;
-	//}
-	//ExitThread(0);
-	//return 0;
-
-//}
 //в режиме кеширования данных эта функция проверяет ответ сервера
 _Bool resultprocess(HWND hwndDlg, _Bool event)
 {
@@ -5416,7 +5285,6 @@ _Bool resultprocess(HWND hwndDlg, _Bool event)
 			return FALSE;
 		wcscpy(kolvo, wotvet);
 
-
 		if (xmlgetw(i, L"<m:Код") < 1)
 			return FALSE;
 		if (wcscmp(wotvet, L"Ошибка") == 0 || wcscmp(wotvet, L"Error") == 0)
@@ -5424,8 +5292,6 @@ _Bool resultprocess(HWND hwndDlg, _Bool event)
 			wcscpy(wotvet, tovar);
 			return FALSE;
 		}
-		if (event)
-			SoundOK(TRUE);
 
 		if (wcscmp(wotvet, L"Вопрос") == 0)
 		{
@@ -5434,12 +5300,39 @@ _Bool resultprocess(HWND hwndDlg, _Bool event)
 			continue;
 
 		}
+		c = _wtol(kolvo);
 
+		if (wcscmp(wotvet, L"Крест") == 0)
+		{
+			if (c < 1)
+				c = 500;
+			showOverlayText(tovar, sy, sx, 500, c, FALSE);	//SoundOK(FALSE);//}else{showOverlayText(L"\x4a",sy,sx,65535-500);SoundOK(TRUE);}
+			continue;
+		}
+
+		if (wcscmp(wotvet, L"Галочка") == 0)
+		{
+			if (c < 1)
+				c = 500;
+			showOverlayText(tovar, sy, sx, 65535 - 500, c, TRUE);	//SoundOK(TRUE);//}else{showOverlayText(L"\x4a",sy,sx,65535-500);SoundOK(TRUE);}
+			continue;
+		}
+
+
+		if (wcscmp(wotvet, L"Выбрать") == 0)
+		{
+			findtreeitem(hwndDlg, kolvo, tovar, tovar, 4);
+			continue;
+		}
+
+		if (event)
+			SoundOK(TRUE);
 		if (wcscmp(wotvet, L"Транспорт") == 0)
 		{
 			SetWindowText(GetDlgItem(hwndDlg, transport), tovar);
 			continue;
 		}
+
 
 		if (wcscmp(wotvet, L"Раскрыть") == 0)
 		{
@@ -5453,6 +5346,8 @@ _Bool resultprocess(HWND hwndDlg, _Bool event)
 			findtreeitem(hwndDlg, kolvo, tovar, tovar, 3);
 			continue;
 		}
+
+
 
 		if (wcscmp(wotvet, L"Удалить") == 0)
 		{
@@ -5491,7 +5386,7 @@ _Bool resultprocess(HWND hwndDlg, _Bool event)
 			return TRUE;
 		}
 		wcscpy(article, wotvet);
-		k = _wtoi(kolvo);	//ShowError(hwndDlg,wotvet);
+		k = _wtoi(kolvo);	//ShowError(0,hwndDlg,wotvet);
 		if (findtreeitem(hwndDlg, kolvo, article, tovar, 0) == NULL)
 		{
 			refreshtree(hwndDlg);
@@ -5584,7 +5479,7 @@ static void refreshtree(HWND hwndDlg)
 		}
 		if (wcscmp(wotvet, L"Выбрать") == 0)
 		{
-		TreeView_SelectItem(GetDlgItem(hwndDlg, treelist), hti[0]);
+			TreeView_SelectItem(GetDlgItem(hwndDlg, treelist), hti[0]);
 			continue;
 		}
 
@@ -5643,8 +5538,6 @@ static void refreshtree(HWND hwndDlg)
 	//  CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)fillcbthread,NULL,0,&dwThreadId);
 
 }
-
-
 
 _Bool scanTreeQuest(HWND hwndDlg, wchar_t *code, int kol)
 {
@@ -5710,10 +5603,12 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 	TVITEMW tvi;
 	HTREEITEM htil;
 
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
 
-
-
-
+	}
 
 	switch (uMsg)
 	{
@@ -5761,7 +5656,7 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 			getscanline(hwndDlg, code);
 			if (wcslen(code) > 3)
 				if (!scanTreeQuest(hwndDlg, code, 1))
-					ShowError(hwndDlg, wotvet);
+					ShowError(0, hwndDlg, wotvet);
 
 		case WM_TIMER:
 			if (wParam == WM_USER + 2)
@@ -5812,7 +5707,7 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							if (wcslen(code) > 3)
 							{
 								if (!scanTreeQuest(hwndDlg, code, 1))
-									ShowError(hwndDlg, wotvet);
+									ShowError(0, hwndDlg, wotvet);
 								break;
 							}
 						}
@@ -5826,36 +5721,21 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 							KillTimer(hwndDlg, WM_USER + 1);
 							KillTimer(hwndDlg, WM_USER + 2);
 							int k = 1;
-							//if (Goodslistmode != 330 && Goodslistmode != 435 && Goodslistmode != 441)
-							//{
-							//k = DialogBox(g_hInstance, MAKEINTRESOURCE(1013), hwndDlg, (DLGPROC)VvodKolvo);
-							//if (k == 0)
-							//return TRUE;
-							//}
-							//else
-							//{
-							//k = 1;
-							//}
 							int c = 0;
 							mSetFocus(GetDlgItem(hwndDlg, combo));
 							SetTimer(hwndDlg, WM_USER + 2, 1000, NULL);
 							for (; c < GUIDSCOUNT; c++)
 								if (uuid[c].hti == tvi.hItem)
 									break;
-							//ShowError(hwndDlg,uuid[c].guid);
+							//ShowError(0,hwndDlg,uuid[c].guid);
 							if (!scanTreeQuest(hwndDlg, uuid[c].guid, k))
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 							return TRUE;
-
-
 						}
-
-
-
 						ShowWindow(GetDlgItem(hwndDlg, combo), Goodslistmode == 442 ? SW_SHOW : SW_HIDE);
 						SetWindowText(GetDlgItem(hwndDlg, combo), L"");
 						if (!scanTreeQuest(hwndDlg, code, 1))
-							ShowError(hwndDlg, wotvet);
+							ShowError(0, hwndDlg, wotvet);
 					}
 					return TRUE;
 			}
@@ -5882,7 +5762,7 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 
 				}
 
-				if (GetAsyncKeyState(119) != 0)
+				if (GetAsyncKeyState(GreenKey) != 0)
 				{
 
 					tvi.mask = TVIF_HANDLE | TVIF_PARAM | TVIF_CHILDREN;
@@ -5904,9 +5784,9 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 					for (; c < GUIDSCOUNT; c++)
 						if (uuid[c].hti == tvi.hItem)
 							break;
-					//ShowError(hwndDlg,uuid[c].guid);
+					//ShowError(0,hwndDlg,uuid[c].guid);
 					if (!scanTreeQuest(hwndDlg, uuid[c].guid, k))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 				}
 
 			}
@@ -5956,9 +5836,9 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 					for (; c < GUIDSCOUNT; c++)
 						if (uuid[c].hti == tvi.hItem)
 							break;
-					//ShowError(hwndDlg,uuid[c].guid);
+					//ShowError(0,hwndDlg,uuid[c].guid);
 					if (!scanTreeQuest(hwndDlg, uuid[c].guid, k))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 				}
 			}
 			return TRUE;
@@ -5968,14 +5848,7 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 
 			wsprintf(kolvo, L"%u", GET_WM_COMMAND_ID(wParam, lParam));
 			GetWindowText(GetDlgItem(hwndDlg, GET_WM_COMMAND_ID(wParam, lParam)), tovar, 100);
-		//if ((wcscmp(tovar, L"Заполнить все") == 0)||(wcscmp(tovar, L"Убрать все") == 0)||(wcscmp(tovar, L"Выбрать все") == 0)||(wcscmp(tovar, L"Удалить все") == 0)||(wcscmp(tovar, L"Набрать все") == 0)||(wcscmp(tovar, L"Отметить все") == 0))
-		//{
-		//tekWnd = hwndDlg;
-		//wcscpy(zagolovokokna, L"СписокДЯ_");
-		//wcscat(zagolovokokna, tovar);
-		//getform1c();
-		//return TRUE;
-		//}
+
 			switch (GET_WM_COMMAND_ID(wParam, lParam))
 			{
 				case 4501:
@@ -5991,7 +5864,7 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 					if (wcslen(uuid[c].guid) < 3)
 						return TRUE;
 					if (!scanTreeQuest(hwndDlg, uuid[c].guid, Goodslistmode))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 					//tomainmenu = FALSE;
 					//EndDialog(hwndDlg, 333);
 					return TRUE;
@@ -5999,7 +5872,7 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 				case 4013:
 					//GetWindowText(GetDlgItem(hwndDlg, 4013), code, 100);
 					if (!scanTreeQuest(hwndDlg, tovar, 0))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 					return TRUE;
 
 				case IDOK:
@@ -6011,14 +5884,14 @@ static LRESULT CALLBACK TreeGoodsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 						if (wcslen(code) > 3)
 						{
 							if (!scanTreeQuest(hwndDlg, code, 1))
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 							break;
 						}
 					}
 
 					GetWindowText(GetDlgItem(hwndDlg, combo), code, 100);
 					if (!scanTreeQuest(hwndDlg, code, 0))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 					SetWindowText(GetDlgItem(hwndDlg, combo), L"");
 					return TRUE;
 
@@ -6069,12 +5942,12 @@ DWORD WINAPI loadUserList()
 	else if (xmlgetw(0, L"return") < 2)
 	{
 
-		ShowError(hwndDlg, L"Произошёл сбой. Необходимо перезапустить apache, обратитесь в отдел ИТ");
+		ShowError(0, hwndDlg, L"Произошёл сбой. Необходимо перезапустить apache, обратитесь в отдел ИТ");
 		SetWindowText(GetDlgItem(hwndDlg, 4011), L"Произошёл сбой. Необходимо перезапустить apache, обратитесь в отдел ИТ");
 	}
 	else if (xmlgetw(0, L"detail") > 1)
 	{
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 
 		SetWindowText(GetDlgItem(hwndDlg, 4011), L"Произошёл сбой. Необходимо перезапустить apache, обратитесь в отдел ИТ");
 	}
@@ -6119,53 +5992,16 @@ static LRESULT CALLBACK Autorization(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 	{
 
 //(...) screen keys 
-		int key = 117;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-				DialogBox(g_hInstance, MAKEINTRESOURCE(options), NULL, (DLGPROC)OptionsProc);
-				//SendMessage(GetDlgItem(hwndDlg, 4001), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
-
+		if (isPressed(117))
+			DialogBox(g_hInstance, MAKEINTRESOURCE(options), NULL, (DLGPROC)OptionsProc);
 //(...) screen keys 
-		key = 118;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
-				EndDialog(hwndDlg, 333);
-				//SendMessage(GetDlgItem(hwndDlg, 4005), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
-
+		if (isPressed(118))
+			EndDialog(hwndDlg, 333);
 
 //green key
-		key = 119;
-		if (GetAsyncKeyState(key) != 0)
-		{
-			if (Pressed[key] == 0)
-			{
-				lastoperation = GetTickCount();
-				Pressed[key] = 1;
+		if (isPressed(GreenKey))
+			SendMessage(GetDlgItem(hwndDlg, IDOK), BM_CLICK, 0, 0);
 
-				SendMessage(GetDlgItem(hwndDlg, IDOK), BM_CLICK, 0, 0);
-
-			}
-		}
-		else
-			Pressed[key] = 0;
 	}
 
 	switch (uMsg)
@@ -6253,7 +6089,7 @@ static LRESULT CALLBACK Autorization(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 				//wcscat(ipadr,);
 					sndxdto(ipadr, L"Авторизация");
 					xmlvalue(0, "return");
-					if (dwBytesRead < 2)//||(xmlgetw(3, L"<m:Наименов") < 1))
+					if (dwBytesRead < 2)	//||(xmlgetw(3, L"<m:Наименов") < 1))
 					{
 						SetWindowText(GetDlgItem(hwndDlg, 4011), L"Ошибка доступа к сети");
 						if (MessageBox(hwndDlg, L"Произошла ошибка доступа к сети\nрекоммендуется выйти и запустить программу снова\nВыйти из программы ?", L"Ошибка сети", MB_YESNO | MB_ICONQUESTION) == IDYES)
@@ -6261,7 +6097,7 @@ static LRESULT CALLBACK Autorization(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 						return TRUE;
 					}
 					wcscpy(temp, wotvet);
-//					MultiByteToWideChar(CODEPAGE, 0, otvet, -1, temp, sizeof(temp));
+//                  MultiByteToWideChar(CODEPAGE, 0, otvet, -1, temp, sizeof(temp));
 					if (wcscmp(temp, L"Успех") == 0)
 					{
 						//MessageBox(hwndDlg,UserWS,PswWS,0);
@@ -6401,7 +6237,7 @@ static LRESULT CALLBACK OptionsProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 void getinfo(HWND hwndDlg, wchar_t *code)
 {
 	//SetWindowText(GetDlgItem(hwndDlg, combo),code);
-	sendGoodslist(L"Информация", code, code, L"0", TRUE);
+	sendGoodslist(L"Информация", code, zagolovokokna, L"0", TRUE);
 	MultiByteToWideChar(CODEPAGE, 0, szData, dwBytesRead, wzData, dwBytesRead);
 
 
@@ -6410,17 +6246,17 @@ void getinfo(HWND hwndDlg, wchar_t *code)
 	{
 		xmlgetw(0, L"detail");
 		SetWindowText(GetDlgItem(hwndDlg, list), wotvet);
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		return;
 	}
 	SoundOK(TRUE);
 	//SetFocus(GetDlgItem(hwndDlg, combo));
 	//  SendMessage(GetDlgItem(hwndDlg, combo), EM_SETSEL,0,-1);
-	xmlgetw(i, L"<m:Код");
+	i = xmlgetw(i, L"<m:Код");
 	if (wcscmp(wotvet, L"Информация") != 0)
 	{
 		tekWnd = hwndDlg;
-		getformparse();
+		getformparse(0);
 		return;
 	}
 	xmlgetw(i, L"<m:Наименов");
@@ -6437,7 +6273,12 @@ static LRESULT CALLBACK InfoProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 	RECT rect;
 	LPMSG pMsg;
 
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
 
+	}
 
 	switch (uMsg)
 	{
@@ -6529,7 +6370,7 @@ static LRESULT CALLBACK InfoProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 			return TRUE;
 
 		case WM_COMMAND:
-			GetWindowText(GetDlgItem(hwndDlg, GET_WM_COMMAND_ID(wParam, lParam)), sklad, 100);
+			GetWindowText(GetDlgItem(hwndDlg, GET_WM_COMMAND_ID(wParam, lParam)), temp, 100);
 			switch (GET_WM_COMMAND_ID(wParam, lParam))
 			{
 
@@ -6545,35 +6386,31 @@ static LRESULT CALLBACK InfoProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 						if (wcslen(code) > 3)
 						{
 							getinfo(hwndDlg, code);
-							break;
+							return TRUE;
 						}
 					}
 					GetWindowText(GetDlgItem(hwndDlg, combo), code, 100);
-
-				//SetWindowText(GetDlgItem(hwndDlg, combo), L"");
-				//SetFocus(GetDlgItem(hwndDlg, combo));
 					if (wcslen(code) < 4)
-						break;
+						return TRUE;
 					getinfo(hwndDlg, code);
-				//SetFocus(GetDlgItem(hwndDlg, combo));
-				//SendMessage(GetDlgItem(hwndDlg, combo), EM_SETSEL, 0, -1);
 					return TRUE;
-				case 4011:
-					KillTimer(hwndDlg, WM_USER + 2);
-					EndDialog(hwndDlg, combo);
 
+				case 4011:
+					wcscpy(sklad,temp);
+					getinfo(hwndDlg, temp);
 					return TRUE;
 
 				case 4013:	// размещение товара с транзита
-					KillTimer(hwndDlg, WM_USER + 2);
-					EndDialog(hwndDlg, IDCANCEL);
-
+					wcscpy(sklad,temp);
+					getinfo(hwndDlg, temp);
 					return TRUE;
+
 				case 4014:	// размещение товара с транзита
-					KillTimer(hwndDlg, WM_USER + 2);
-					EndDialog(hwndDlg, GET_WM_COMMAND_ID(wParam, lParam));
-
+					wcscpy(sklad,temp);
+					getinfo(hwndDlg, temp);
 					return TRUE;
+
+
 
 			}
 			break;
@@ -6629,7 +6466,7 @@ _Bool SelectFilQuest(HWND hwndDlg, int d)
 	if (i < 1)
 	{
 		xmlgetw(0, L"detail");
-		//ShowError(hwndDlg,wotvet);
+		//ShowError(0,hwndDlg,wotvet);
 		//myMessageBox(0,wotvet,0,100);
 		return FALSE;
 	}
@@ -6770,7 +6607,7 @@ int filltab(HWND hwndDlg, wchar_t *col1, wchar_t *col2, wchar_t *col3, wchar_t *
 	if (i < 1)
 	{
 		xmlgetw(0, L"detail");
-		ShowError(hwndDlg, wotvet);
+		ShowError(0, hwndDlg, wotvet);
 		MyMessageBox(0, wotvet, 0, 100);
 	}
 	c = 1;
@@ -6786,7 +6623,7 @@ int filltab(HWND hwndDlg, wchar_t *col1, wchar_t *col2, wchar_t *col3, wchar_t *
 		if (wcscmp(wotvet, L"Ошибко") == 0 || wcscmp(wotvet, L"Error") == 0)
 		{
 			xmlgetw(i, L"<m:Наименов");
-			ShowError(hwndDlg, wotvet);
+			ShowError(0, hwndDlg, wotvet);
 			MyMessageBox(0, wotvet, 0, 100);
 			continue;
 		}
@@ -6875,6 +6712,12 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 	//wsprintf(code,L"---r %x; l %x; ---",GetAsyncKeyState(39),GetAsyncKeyState(37));
 	//MyMessageWait(code);
 
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
+
+	}
 
 	switch (uMsg)
 	{
@@ -6940,7 +6783,7 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 			getscanline(hwndDlg, code);
 			if (wcslen(code) > 3)
 				if (!scanQuest(hwndDlg, code))
-					ShowError(hwndDlg, wotvet);
+					ShowError(0, hwndDlg, wotvet);
 			return TRUE;
 
 
@@ -7005,7 +6848,7 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 					if (SelectFilQuest(hwndDlg, Goodslistmode))
 						EndDialog(hwndDlg, 130);
 					else
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 			return TRUE;
 
 		case WM_GETDLGCODE:
@@ -7072,9 +6915,9 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 							if (SelectFilQuest(hwndDlg, Goodslistmode))
 								EndDialog(hwndDlg, 130);
 							else
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 						else if (!scanQuest(hwndDlg, code))
-							ShowError(hwndDlg, wotvet);
+							ShowError(0, hwndDlg, wotvet);
 					}
 
 			}
@@ -7096,21 +6939,21 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 			}
 			if (wParam == WM_USER + 2)
 			{
-				if (Goodslistmode == 437)
-				{
-					GetWindowText(GetDlgItem(hwndDlg, combo), code, 100);
-					if (wcslen(code) == 0)
-						return TRUE;
-					mSetFocus(GetDlgItem(hwndDlg, combo));
-					SendMessage(GetDlgItem(hwndDlg, combo), EM_SETSEL, -1, 0);
+				//if (Goodslistmode == 437)
+				//{
+				//GetWindowText(GetDlgItem(hwndDlg, combo), code, 100);
+				//if (wcslen(code) == 0)
+				//return TRUE;
+				//mSetFocus(GetDlgItem(hwndDlg, combo));
+				//SendMessage(GetDlgItem(hwndDlg, combo), EM_SETSEL, -1, 0);
 
-					i = FindStringInTable(GetDlgItem(hwndDlg, list), code, 4);
-					if (i < 0)
-						return TRUE;
-					ListView_SetSelectionMark(GetDlgItem(hwndDlg, list), i);
-					ListView_SetItemState(GetDlgItem(hwndDlg, list), i, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
-					ListView_EnsureVisible(GetDlgItem(hwndDlg, list), i, TRUE);
-				}
+				//i = FindStringInTable(GetDlgItem(hwndDlg, list), code, 4);
+				//if (i < 0)
+				//return TRUE;
+				//ListView_SetSelectionMark(GetDlgItem(hwndDlg, list), i);
+				//ListView_SetItemState(GetDlgItem(hwndDlg, list), i, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
+				//ListView_EnsureVisible(GetDlgItem(hwndDlg, list), i, TRUE);
+				//}
 			}
 			return TRUE;
 
@@ -7128,7 +6971,7 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 						if (wcslen(code) > 3)
 						{
 							if (!scanQuest(hwndDlg, code))
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 						}
 						else
 						{
@@ -7142,9 +6985,9 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 								if (SelectFilQuest(hwndDlg, Goodslistmode))
 									EndDialog(hwndDlg, 130);
 								else
-									ShowError(hwndDlg, wotvet);
+									ShowError(0, hwndDlg, wotvet);
 							else if (!scanQuest(hwndDlg, code))
-								ShowError(hwndDlg, wotvet);
+								ShowError(0, hwndDlg, wotvet);
 
 						}
 
@@ -7165,18 +7008,13 @@ static LRESULT CALLBACK QuestSelect(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPAR
 					return TRUE;
 
 				case sledfilial:
-					if(Goodslistmode == 537)if(SendListwithCommand(hwndDlg,L"",L"Список Флажков",TRUE)){
-//								KillTimer(hwndDlg, WM_USER + 2);
-//								EndDialog(hwndDlg, 130);
-							return TRUE;}
-
 					if (SelectFilQuest(hwndDlg, Goodslistmode))
 					{
 						KillTimer(hwndDlg, WM_USER + 2);
 						EndDialog(hwndDlg, 130);
 					}
 					else
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 					return TRUE;
 			}
 			break;
@@ -7268,7 +7106,31 @@ static LRESULT CALLBACK Vopros(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lP
 	_Bool AskForCount;
 	//static long starttime;
 	wchar_t tovar[200], article[100], kolvo[100];
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
 
+		HWND hwndList = GetDlgItem(hwndDlg, list);
+		i = ListView_GetSelectionMark(hwndList);
+
+					if (isPressed(38))
+					{
+						mSetFocus(hwndList);
+						ListView_SetSelectionMark(hwndList, i - 1);
+					}
+					if (isPressed(40))
+					{
+						mSetFocus(hwndList);
+						ListView_SetSelectionMark(hwndList, i + 1);
+					}
+
+
+
+
+
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
+
+	}
 	switch (uMsg)
 	{
 		case WM_INITDIALOG:
@@ -7319,6 +7181,37 @@ static LRESULT CALLBACK Vopros(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lP
 				if (xmlgetw(i, L"<m:Количество") < 1)
 					break;
 				wcscpy(kolvo, wotvet);
+				if (wcscmp(L"ТекстВопроса", article) == 0)
+				{
+					SetWindowText(GetDlgItem(hwndDlg, Userlist), tovar);	// текст вопроса
+					continue;
+				}
+
+
+				if (wcscmp(L"Получить форму", article) == 0)
+				{
+					tekWnd = hwndDlg;
+					ListView_SetItemState(GetDlgItem(hwndDlg, list), 1, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED);
+					SetForegroundWindow(hwndDlg);
+					freeMessages(pMsg, hwndDlg);
+					freeMessages(pMsg, hwndDlg);
+					getformparse(i);
+					break;
+				}
+
+				if (wcscmp(article, L"УдалитьКолонкуСписка") == 0)
+				{
+
+					ListView_DeleteColumn(GetDlgItem(hwndDlg, list), _wtoi(kolvo));
+					continue;
+				}
+
+				if (wcscmp(L"ОтветнаяФункция", article) == 0)
+				{
+					wcscpy(knopkadalee, tovar);
+					continue;
+				}
+
 				if (wcscmp(L"БезКоличества", article) == 0)
 				{
 					AskForCount = FALSE;
@@ -7440,14 +7333,114 @@ static LRESULT CALLBACK Vopros(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lP
 }
 
 
+static LRESULT CALLBACK CrossForm(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	int i;
+	wchar_t code[100];
+	RECT rect;
+	LPMSG pMsg;
+	int t, tm;
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
+
+	}
+	switch (uMsg)
+	{
+		case WM_INITDIALOG:
+		{
+			//HBITMAP g_hbmObject = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(1008));
+			////initialize slotmachine class
+
+
+//HBITMAP hOldBmp = (HBITMAP) ::SendMessage(hStatic, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM) DestBmp);
+			//if (hOldBmp)
+			//DeleteObject(hOldBmp);
+
+			//// *** Why do I need this? ***
+			//::InvalidateRect(hStatic, NULL, FALSE);
+
+//DeleteObject(g_hbmObject);
+			//                  EndDialog(hwnd, 0);
+			tm = GetTickCount();
+			OpenClipboard(hwndDlg);
+			EmptyClipboard();
+			CloseClipboard();
+			SetWindowText(GetDlgItem(hwndDlg, combo), label1);
+			autofontialog(hwndDlg, 7, 18);
+			int x = GetSystemMetrics(SM_CXSCREEN);
+			int y = GetSystemMetrics(SM_CYSCREEN);
+			//GetWindowRect(GetDesktopWindow(), &rect);
+			ShowWindow(GetDlgItem(hwndDlg, 4011), SW_SHOW);
+			//  ShowWindow(GetDlgItem(hwndDlg, 4011), SW_HIDE);
+			SetWindowPos(GetDlgItem(hwndDlg, 4011), GetDlgItem(hwndDlg, 4011), 3, 10, x - 9, 2 * y / 3, SWP_NOZORDER);
+
+			SetWindowPos(hwndDlg, hwndDlg, 0, 0, x, y, SWP_NOZORDER);
+			SetWindowPos(GetDlgItem(hwndDlg, combo), GetDlgItem(hwndDlg, combo), 3, y - 50, 50, 50, SWP_NOZORDER);
+			SetWindowPos(GetDlgItem(hwndDlg, 4025), GetDlgItem(hwndDlg, 4025), x / 3, 2 * y / 3 + 10, (x / 3) - 6, y / 3 - 20, SWP_NOZORDER);
+			SetFocus(GetDlgItem(hwndDlg, combo));
+			//SendMessage(GetDlgItem(hwndDlg,combo), EM_SETSEL  ,-1,0);
+			return TRUE;
+		}
+		case WM_GETDLGCODE:
+			pMsg = (LPMSG) (lParam);
+			switch (pMsg->lParam)
+			{
+
+				case WM_KEYDOWN:
+					if (LOWORD(pMsg->wParam) == 0x30)
+						SendMessage(GetDlgItem(hwndDlg, 4025), BM_CLICK, 0, 0);
+					//if (LOWORD(pMsg->wParam) == VK_RETURN)SendMessage(GetDlgItem(hwndDlg,4025),BM_CLICK,0,0);
+
+			}
+			SetWindowLong(hwndDlg, DWL_MSGRESULT, DLGC_WANTALLKEYS | DLGC_WANTCHARS);
+			return DLGC_WANTARROWS | DLGC_WANTALLKEYS | DLGC_WANTCHARS;
+
+		case WM_COMMAND:
+
+			switch (GET_WM_COMMAND_ID(wParam, lParam))
+			{
+				case 4025:
+					//if((GetTickCount()-t)>2000)
+					EndDialog(hwndDlg, 0);
+				//Sleep(1000);
+
+					return TRUE;
+
+
+
+
+			}
+			break;
+
+		case 0x80b4:
+			getscanline(hwndDlg, code);
+			EndDialog(hwndDlg, 0);
+			return TRUE;
+
+	}
+	//if((GetTickCount()-tm) > 30000)EndDialog(hwndDlg,0);
+	if (tomainmenu)
+		EndDialog(hwndDlg, 0);
+	return FALSE;
+}
+
+
 
 static LRESULT CALLBACK Erroring(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	int i;
+	wchar_t code[100];
 	RECT rect;
 	LPMSG pMsg;
 	int t, tm;
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
 
+	}
 	switch (uMsg)
 	{
 		case WM_INITDIALOG:
@@ -7506,9 +7499,11 @@ static LRESULT CALLBACK Erroring(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 			}
 			break;
 
-		//case WM_CLOSE:
-		//  EndDialog(hwndDlg, 0);
-		// return TRUE;
+		case 0x80b4:
+			getscanline(hwndDlg, code);
+			EndDialog(hwndDlg, 0);
+			return TRUE;
+
 	}
 	//if((GetTickCount()-tm) > 30000)EndDialog(hwndDlg,0);
 	if (tomainmenu)
@@ -7523,6 +7518,12 @@ static LRESULT CALLBACK ScanForm(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 	int x, y, d, i, z;
 	RECT rect;
 	LPMSG pMsg;
+	if (UseMotorolla && (GetTickCount() != lastoperation))
+	{
+		if (isPressed(ScanKey))
+			uMsg = 0x80b4;
+
+	}
 	//wsprintf(code,L"---%x;%x---",wParam,lParam);
 	//MyMessageWait(code);
 	switch (uMsg)
@@ -7584,7 +7585,7 @@ static LRESULT CALLBACK ScanForm(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 						if (wcslen(code) < 4)
 							break;
 						if (!scanQuest(hwndDlg, code))
-							ShowError(hwndDlg, wotvet);
+							ShowError(0, hwndDlg, wotvet);
 
 					}
 			}
@@ -7609,7 +7610,7 @@ static LRESULT CALLBACK ScanForm(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
 				case IDCANCEL:	//Отмена список
 					if (!scanQuest(hwndDlg, L"ОтменаЗадания"))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 					KillTimer(hwndDlg, WM_USER + 2);
 					EndDialog(hwndDlg, 0);
 					return TRUE;
@@ -7626,7 +7627,7 @@ static LRESULT CALLBACK ScanForm(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 					if (wcslen(code) < 4)
 						break;
 					if (!scanQuest(hwndDlg, code))
-						ShowError(hwndDlg, wotvet);
+						ShowError(0, hwndDlg, wotvet);
 
 					return TRUE;
 
@@ -7643,7 +7644,7 @@ static LRESULT CALLBACK ScanForm(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 		getscanline(hwndDlg, code);
 		if (wcslen(code) > 3)
 			if (!scanQuest(hwndDlg, code))
-				ShowError(hwndDlg, wotvet);
+				ShowError(0, hwndDlg, wotvet);
 
 	}
 	if (tomainmenu)

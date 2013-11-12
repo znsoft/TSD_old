@@ -49,6 +49,6 @@ output\main.res: \
 	main.h
 	$(RC) $(RCFLAGS) "$!" -Fo"$@"
 
-.EXCLUDEDFILES:
-
 .SILENT:
+
+.EXCLUDEDFILES:
