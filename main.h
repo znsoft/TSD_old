@@ -19,6 +19,7 @@
 #define Voprosfrm		1017
 #define scanfrm			1018
 #define DefragForm  	1019
+#define SVoprosFrm 		1020
 
 
 
@@ -29,18 +30,19 @@
 
 #define list  		4001
 #define combo  		4002
-#define PortEdit    4006
-#define Namespace   4008
+#define ServerName  4003
 #define Userlist    4004
-#define password    4007
 #define treelist    4005
+#define PortEdit    4006
+#define password    4007
+#define Namespace   4008
+#define ErrorMsg    4009
+#define tab1  4010
+#define VersionNumber  4012
+#define LabelSeconds  4014
 #define scancode    4021
 #define sledfilial  4020
 #define noscan      4022
-#define ServerName  4003
 #define zakonchit   4023
-#define ErrorMsg    4009
 #define transport    4024
 
-#define tab1  4010
-#define VersionNumber  4012

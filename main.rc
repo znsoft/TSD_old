@@ -21,7 +21,7 @@ FONT 8, "Tahoma"
   CONTROL "Разгрузка машины", ServerName, "Button", BS_MULTILINE|WS_TABSTOP, 0, 80, 72, 20
   CONTROL "Погрузка машины", Userlist, "Button", BS_MULTILINE|WS_TABSTOP, 72, 80, 72, 20
   CONTROL "Button", 4013, "Button", WS_TABSTOP, 0, 100, 72, 18
-  CONTROL "Button", 4014, "Button", WS_TABSTOP, 72, 100, 72, 18
+  CONTROL "Button", LabelSeconds, "Button", WS_TABSTOP, 72, 100, 72, 18
   CONTROL "Поиск товара", treelist, "Button", BS_MULTILINE|WS_TABSTOP, 0, 120, 72, 20
   CONTROL "0.Выход", PortEdit, "Button", BS_MULTILINE|WS_TABSTOP, 72, 120, 72, 20
   CONTROL "", 4500, "Edit", NOT WS_VISIBLE|ES_AUTOHSCROLL|ES_READONLY|WS_BORDER|WS_TABSTOP, 0, 0, 144, 12
@@ -35,7 +35,7 @@ EXSTYLE WS_EX_CONTEXTHELP|WS_EX_TOPMOST
 CLASS "testdialClass"
 FONT 8, "Tahoma"
 {
-  CONTROL "0", 4014, "Edit", NOT WS_VISIBLE|ES_AUTOHSCROLL|WS_BORDER|WS_TABSTOP, 60, 64, 40, 12
+  CONTROL "0", LabelSeconds, "Edit", NOT WS_VISIBLE|ES_AUTOHSCROLL|WS_BORDER|WS_TABSTOP, 60, 64, 40, 12
   CONTROL "Всего", 4013, "Edit", NOT WS_VISIBLE|ES_AUTOHSCROLL|WS_BORDER|WS_TABSTOP, 36, 64, 40, 12
   CONTROL "", combo, "ComboBox", NOT WS_VISIBLE|WS_BORDER|CBS_DROPDOWN|WS_VSCROLL|WS_TABSTOP, 0, 0, 144, 12
   CONTROL "Количество", Userlist, "Button", WS_TABSTOP, 0, 0, 48, 12
@@ -99,7 +99,7 @@ FONT 8, "Tahoma"
   CONTROL "x", 4501, "Button", NOT WS_VISIBLE|WS_TABSTOP, 132, 0, 14, 12
   CONTROL "Search", VersionNumber, "Button", WS_TABSTOP, 96, 60, 50, 14
   CONTROL "Быстро", 4013, "Button", BS_AUTOCHECKBOX|WS_TABSTOP, 52, 76, 44, 10
-  CONTROL "Reconnect", 4014, "Button", BS_AUTOCHECKBOX|WS_TABSTOP, 52, 60, 44, 10
+  CONTROL "Reconnect", LabelSeconds, "Button", BS_AUTOCHECKBOX|WS_TABSTOP, 52, 60, 44, 10
 }
 
 Login DIALOG DISCARDABLE 6, 18, 146, 146
@@ -150,7 +150,7 @@ FONT 8, "Tahoma"
   CONTROL "CT:", VersionNumber, "Static", WS_GROUP, 0, 148, 12, 12
   CONTROL "", 4011, "Static", WS_GROUP|WS_TABSTOP, 0, 128, 116, 16
   CONTROL "x", 4013, "Button", NOT WS_VISIBLE|WS_TABSTOP, 104, 44, 14, 12
-  CONTROL "", 4014, "Static", NOT WS_VISIBLE|WS_GROUP, 0, 0, 116, 8
+  CONTROL "", LabelSeconds, "Static", NOT WS_VISIBLE|WS_GROUP, 0, 0, 116, 8
   CONTROL "This is a label:", 4015, "Static", NOT WS_VISIBLE|WS_GROUP, 76, 140, 40, 8
 }
 
@@ -192,7 +192,7 @@ FONT 8, "Tahoma"
   CONTROL "Выход", zakonchit, "Button", WS_TABSTOP, 0, 112, 32, 16
   CONTROL "Переместить", 4011, "Button", NOT WS_VISIBLE|WS_TABSTOP, 32, 112, 48, 16
   CONTROL "Разместить", 4013, "Button", NOT WS_VISIBLE|WS_TABSTOP, 80, 112, 40, 16
-  CONTROL "Проверка", 4014, "Button", NOT WS_VISIBLE|WS_TABSTOP, 24, 128, 20, 6
+  CONTROL "Проверка", LabelSeconds, "Button", NOT WS_VISIBLE|WS_TABSTOP, 24, 128, 20, 6
   CONTROL "This is a label:", 4015, "Static", NOT WS_VISIBLE|WS_GROUP|WS_TABSTOP, 64, 128, 40, 4
   CONTROL "", 4016, "Edit", NOT WS_VISIBLE|ES_CENTER|ES_OEMCONVERT|ES_WANTRETURN|ES_READONLY|WS_BORDER|WS_TABSTOP, 0, 0, 80, 16
   CONTROL "Для получения информации сосканируйте ШК", 4017, "Static", WS_GROUP, 0, 88, 140, 16
@@ -208,7 +208,7 @@ FONT 8, "Tahoma"
   CONTROL "", list, "SysListView32", LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_AUTOARRANGE|WS_BORDER|WS_TABSTOP, 0, 28, 120, 76
   CONTROL "Вопрос", Userlist, "Static", WS_GROUP|WS_TABSTOP, 0, 0, 120, 16
   CONTROL "1", 4013, "Edit", NOT WS_VISIBLE|ES_NUMBER|ES_AUTOHSCROLL|WS_BORDER|WS_TABSTOP, 92, 16, 20, 12
-  CONTROL "", 4014, "msctls_updown32", NOT WS_VISIBLE|UDS_SETBUDDYINT|UDS_ARROWKEYS, 112, 16, 8, 14
+  CONTROL "", LabelSeconds, "msctls_updown32", NOT WS_VISIBLE|UDS_SETBUDDYINT|UDS_ARROWKEYS, 112, 16, 8, 14
 }
 
 scanfrm DIALOG DISCARDABLE 6, 18, 106, 106
@@ -221,6 +221,18 @@ FONT 8, "Tahoma"
   CONTROL "Отмена", IDCANCEL, "Button", WS_TABSTOP, 40, 72, 32, 12
   CONTROL "", 4011, "Static", WS_GROUP|WS_TABSTOP, 0, 20, 96, 24
   CONTROL "", list, "Static", WS_GROUP|WS_TABSTOP, 0, 0, 96, 24
+}
+
+SVoprosFrm DIALOG DISCARDABLE 6, 18, 154, 82
+STYLE WS_POPUP|DS_MODALFRAME|DS_CENTER|WS_CAPTION|WS_VISIBLE
+EXSTYLE WS_EX_TOPMOST
+FONT 8, "Tahoma"
+{
+  CONTROL "Продолжить работу", IDOK, "Button", WS_TABSTOP, 36, 56, 84, 24
+  CONTROL "Вы бездействовали более 30 минут, ваша   сессия будет завершена автоматически   через ", Userlist, "Static", WS_GROUP|WS_TABSTOP, 0, 0, 152, 24
+  CONTROL "", 4011, "msctls_progress32", WS_BORDER, 0, 40, 152, 12
+  CONTROL "секунд", 4013, "Static", WS_GROUP, 76, 28, 76, 8
+  CONTROL "30", LabelSeconds, "Static", SS_RIGHT|WS_GROUP, 4, 28, 68, 8
 }
 
 STRINGTABLE
