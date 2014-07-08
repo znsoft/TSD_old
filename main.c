@@ -23,7 +23,7 @@
 #pragma comment( lib, "coredll")
 #define  ScanBuf    10	//буфер сканирования кэш
 #define  GUIDSIZE   2000	//размер временной таблицы гуидов (строк)
-#define  BUFSIZE    200000	// размер выделяемой памяти для буфера приема отсылки 200000
+#define  BUFSIZE    150000	// размер выделяемой памяти для буфера приема отсылки 200000
 #define  true    TRUE
 #define  boolean _Bool
 #define  false   FALSE
@@ -31,7 +31,7 @@
 #define  CFGFILE    L"tsdconfig.xml"
 #define  LogFILE    L"tsdLog.xml"
 
-#define  VERSION    L"126"
+#define  VERSION    L"127"
 #define  tagCode L"<m:Код"
 
 #define  NO_ST FALSE
