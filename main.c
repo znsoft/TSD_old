@@ -23,7 +23,7 @@
 #pragma comment( lib, "coredll")
 #define  ScanBuf    10	//буфер сканирования кэш
 #define  GUIDSIZE   2000	//размер временной таблицы гуидов (строк)
-#define  BUFSIZE    150000	// размер выделяемой памяти для буфера приема отсылки 200000
+#define  BUFSIZE    200000	// размер выделяемой памяти для буфера приема отсылки 200000
 #define  true    TRUE
 #define  boolean _Bool
 #define  false   FALSE
@@ -31,7 +31,7 @@
 #define  CFGFILE    L"tsdconfig.xml"
 #define  LogFILE    L"tsdLog.xml"
 
-#define  VERSION    L"127"
+#define  VERSION    L"128"
 #define  tagCode L"<m:Код"
 
 #define  NO_ST FALSE
@@ -2451,7 +2451,7 @@ static void getform1c()
 	LVFINDINFO lvf;
 	wchar_t code[200], tovar[200], kolvo[200];
 	HWND hwndDlg = tekWnd;
-	Barcode1D_init();
+	if(UseMotorolla)Barcode1D_init();
 	GetWindowRect(hwndDlg, &rc);
 	memset(wotvet, 0, BUFSIZE);
 	wsprintf(code, L"%u", rc.bottom);
