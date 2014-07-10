@@ -11,26 +11,6 @@
 		</category>
 	</category>
 	<category name="main.c">
-		<category name="Window">
-			<property name="Left" type="integer">-8</property>
-			<property name="Top" type="integer">-30</property>
-			<property name="Right" type="integer">1364</property>
-			<property name="Bottom" type="integer">796</property>
-			<property name="Maximized" type="integer">1</property>
-			<property name="Active" type="integer">1</property>
-		</category>
-		<category name="Breakpoints">
-			<category name="Breakpoint1">
-				<property name="Line" type="integer">6317</property>
-				<property name="Enabled" type="integer">1</property>
-				<property name="HitCount" type="integer">0</property>
-				<property name="Expression" type="string" />			</category>
-			<category name="Breakpoint2">
-				<property name="Line" type="integer">6368</property>
-				<property name="Enabled" type="integer">1</property>
-				<property name="HitCount" type="integer">0</property>
-				<property name="Expression" type="string" />			</category>
-		</category>
 		<category name="Foldings">
 			<property name="Line1" type="integer">175</property>
 			<property name="Line2" type="integer">191</property>
@@ -82,6 +62,40 @@
 			<property name="Line48" type="integer">3505</property>
 			<property name="Line49" type="integer">3617</property>
 			<property name="Line50" type="integer">6267</property>
+		</category>
+		<category name="Window">
+			<property name="Left" type="integer">-8</property>
+			<property name="Top" type="integer">-30</property>
+			<property name="Right" type="integer">1364</property>
+			<property name="Bottom" type="integer">796</property>
+			<property name="Maximized" type="integer">1</property>
+			<property name="Active" type="integer">1</property>
+		</category>
+		<category name="Breakpoints">
+			<category name="Breakpoint1">
+				<property name="Line" type="integer">2454</property>
+				<property name="Enabled" type="integer">1</property>
+				<property name="HitCount" type="integer">0</property>
+				<property name="Expression" type="string"></property>
+			</category>
+			<category name="Breakpoint2">
+				<property name="Line" type="integer">3060</property>
+				<property name="Enabled" type="integer">1</property>
+				<property name="HitCount" type="integer">0</property>
+				<property name="Expression" type="string"></property>
+			</category>
+			<category name="Breakpoint3">
+				<property name="Line" type="integer">6368</property>
+				<property name="Enabled" type="integer">0</property>
+				<property name="HitCount" type="integer">0</property>
+				<property name="Expression" type="string"></property>
+			</category>
+			<category name="Breakpoint4">
+				<property name="Line" type="integer">6317</property>
+				<property name="Enabled" type="integer">1</property>
+				<property name="HitCount" type="integer">0</property>
+				<property name="Expression" type="string"></property>
+			</category>
 		</category>
 	</category>
 	<category
