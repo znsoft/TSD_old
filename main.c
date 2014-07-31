@@ -31,7 +31,7 @@
 #define  CFGFILE    L"tsdconfig.xml"
 #define  LogFILE    L"tsdLog.xml"
 
-#define  VERSION    L"128"
+#define  VERSION    L"129"
 #define  tagCode L"<m:Код"
 
 #define  NO_ST FALSE
@@ -1585,10 +1585,11 @@ _Bool sendwsupd(wchar_t *text, wchar_t *outfile)
 static _Bool checkUpdate(void)
 {
 	wchar_t selfname[300];
+	wchar_t thisname[300];
 	_Bool rr;
 	int tt;
 	MyMessageBox(0, L"Update ", 0, 100);
-
+	GetModuleFileName(NULL, thisname, 300);
 	wcscpy(UserWS, L"WebConnection");
 	wcscpy(PswWS, L"951");
 	wcscpy(selfname, selfdir);
@@ -1625,6 +1626,7 @@ static _Bool checkUpdate(void)
 	SHELLEXECUTEINFO se = { sizeof(SHELLEXECUTEINFO) };
 	se.lpFile = selfname;
 	se.nShow = SW_SHOW;
+	se.lpParameters = thisname;
 	se.fMask = SEE_MASK_FLAG_NO_UI;
 	PROCESS_INFORMATION pi;
 //  rr = rr&&(CreateProcess(selfname, NULL, NULL, NULL, FALSE, 0x00000100, NULL, selfdir, &si, &pi)>0);

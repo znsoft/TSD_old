@@ -5,7 +5,7 @@
 			<property name="Left" type="integer">0</property>
 			<property name="Top" type="integer">0</property>
 			<property name="Right" type="integer">1440</property>
-			<property name="Bottom" type="integer">591</property>
+			<property name="Bottom" type="integer">613</property>
 			<property name="Maximized" type="integer">0</property>
 			<property name="Active" type="integer">0</property>
 		</category>
@@ -18,26 +18,26 @@
 			<property name="Line4" type="integer">328</property>
 			<property name="Line5" type="integer">381</property>
 			<property name="Line6" type="integer">398</property>
-			<property name="Line7" type="integer">413</property>
-			<property name="Line8" type="integer">431</property>
-			<property name="Line9" type="integer">454</property>
-			<property name="Line10" type="integer">527</property>
-			<property name="Line11" type="integer">549</property>
-			<property name="Line12" type="integer">585</property>
-			<property name="Line13" type="integer">598</property>
-			<property name="Line14" type="integer">614</property>
-			<property name="Line15" type="integer">627</property>
-			<property name="Line16" type="integer">638</property>
-			<property name="Line17" type="integer">651</property>
-			<property name="Line18" type="integer">670</property>
-			<property name="Line19" type="integer">685</property>
-			<property name="Line20" type="integer">707</property>
-			<property name="Line21" type="integer">737</property>
-			<property name="Line22" type="integer">784</property>
-			<property name="Line23" type="integer">949</property>
-			<property name="Line24" type="integer">962</property>
-			<property name="Line25" type="integer">1013</property>
-			<property name="Line26" type="integer">1023</property>
+			<property name="Line7" type="integer">431</property>
+			<property name="Line8" type="integer">454</property>
+			<property name="Line9" type="integer">527</property>
+			<property name="Line10" type="integer">549</property>
+			<property name="Line11" type="integer">585</property>
+			<property name="Line12" type="integer">598</property>
+			<property name="Line13" type="integer">614</property>
+			<property name="Line14" type="integer">627</property>
+			<property name="Line15" type="integer">638</property>
+			<property name="Line16" type="integer">651</property>
+			<property name="Line17" type="integer">670</property>
+			<property name="Line18" type="integer">685</property>
+			<property name="Line19" type="integer">707</property>
+			<property name="Line20" type="integer">737</property>
+			<property name="Line21" type="integer">784</property>
+			<property name="Line22" type="integer">949</property>
+			<property name="Line23" type="integer">962</property>
+			<property name="Line24" type="integer">1013</property>
+			<property name="Line25" type="integer">1023</property>
+			<property name="Line26" type="integer">1062</property>
 			<property name="Line27" type="integer">1100</property>
 			<property name="Line28" type="integer">1118</property>
 			<property name="Line29" type="integer">1147</property>
@@ -67,7 +67,7 @@
 			<property name="Left" type="integer">-8</property>
 			<property name="Top" type="integer">-30</property>
 			<property name="Right" type="integer">1364</property>
-			<property name="Bottom" type="integer">796</property>
+			<property name="Bottom" type="integer">826</property>
 			<property name="Maximized" type="integer">1</property>
 			<property name="Active" type="integer">1</property>
 		</category>
@@ -96,6 +96,12 @@
 				<property name="HitCount" type="integer">0</property>
 				<property name="Expression" type="string"></property>
 			</category>
+			<category name="Breakpoint5">
+				<property name="Line" type="integer">5572</property>
+				<property name="Enabled" type="integer">1</property>
+				<property name="HitCount" type="integer">0</property>
+				<property name="Expression" type="string"></property>
+			</category>
 		</category>
 	</category>
 	<category
@@ -112,7 +118,7 @@ name="..\..\Program Files\PellesC\Include\WinCE\winsock.h" />
 			<property name="Left" type="integer">50</property>
 			<property name="Top" type="integer">50</property>
 			<property name="Right" type="integer">1490</property>
-			<property name="Bottom" type="integer">641</property>
+			<property name="Bottom" type="integer">663</property>
 			<property name="Maximized" type="integer">0</property>
 			<property name="Active" type="integer">0</property>
 		</category>
